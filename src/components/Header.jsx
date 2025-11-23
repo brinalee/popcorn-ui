@@ -57,23 +57,7 @@ function Header({ activeSection, onChangeSection }) {
   return (
     <header className="app-header">
       <div className="header-left">
-        {/* Channel name with incident badge */}
-        <button
-          className="workspace-button"
-          type="button"
-          onClick={handleWorkspaceClick}
-        >
-          <span className="workspace-name"># sev-incidents</span>
-          <span className="workspace-badge">LIVE INCIDENT</span>
-        </button>
-
-        {/* Incident description */}
-        <div className="incident-description">
-          Production SEV: billing 500s spike · Region: us-west-2
-        </div>
-
-        {/* Tabs (optional, removed for cleaner incident view) */}
-        {/*
+        {/* Tabs */}
         <nav className="header-tabs">
           <button
             type="button"
@@ -82,7 +66,7 @@ function Header({ activeSection, onChangeSection }) {
             }
             onClick={() => onChangeSection("chats")}
           >
-            Chats
+            chats
           </button>
           <button
             type="button"
@@ -91,10 +75,9 @@ function Header({ activeSection, onChangeSection }) {
             }
             onClick={() => onChangeSection("app")}
           >
-            App Platform
+            @popcorn
           </button>
         </nav>
-        */}
       </div>
 
       {/* Right side could hold icons later */}

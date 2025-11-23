@@ -13,6 +13,7 @@ export const channels = [
         author: "Brina",
         initials: "B",
         avatarColor: "gray",
+        avatarUrl: "https://i.pravatar.cc/150?img=1",
         time: "09:41",
         bubbles: [
           "Anyone seeing elevated 500s on api-gateway? Pager just went off."
@@ -24,6 +25,7 @@ export const channels = [
         author: "Tom",
         initials: "T",
         avatarColor: "gray",
+        avatarUrl: "https://i.pravatar.cc/150?img=12",
         time: "09:42",
         bubbles: [
           "Yep, prod-us-west-2 is flapping. Dashboards show a spike starting right after deploy #428."
@@ -35,6 +37,7 @@ export const channels = [
         author: "Aisha",
         initials: "A",
         avatarColor: "gray",
+        avatarUrl: "https://i.pravatar.cc/150?img=5",
         time: "09:43",
         bubbles: [
           "Looking at the logs, most errors are on /billing/charge. Could be the currency refactor?"
@@ -58,6 +61,7 @@ export const channels = [
         author: "Devon",
         initials: "D",
         avatarColor: "gray",
+        avatarUrl: "https://i.pravatar.cc/150?img=33",
         time: "09:45",
         bubbles: [
           "PR 128 changed the retry logic on Stripe timeouts. Maybe we're retrying in a way that double-charges?"
@@ -69,6 +73,7 @@ export const channels = [
         author: "Tom",
         initials: "T",
         avatarColor: "gray",
+        avatarUrl: "https://i.pravatar.cc/150?img=12",
         time: "09:46",
         bubbles: [
           "Linking another one: https://github.com/kewl/infra-incidents/pull/131 – added a new feature flag `BILLING_STRICT_MODE`."
@@ -92,6 +97,7 @@ export const channels = [
         author: "Aisha",
         initials: "A",
         avatarColor: "gray",
+        avatarUrl: "https://i.pravatar.cc/150?img=5",
         time: "09:48",
         bubbles: [
           "Agree. I'll toggle BILLING_STRICT_MODE off in prod and watch 500s."
@@ -103,6 +109,7 @@ export const channels = [
         author: "Brina",
         initials: "B",
         avatarColor: "gray",
+        avatarUrl: "https://i.pravatar.cc/150?img=1",
         time: "09:49",
         bubbles: [
           "On it. Also let's capture a quick timeline in the incident doc; dropping link: https://github.com/kewl/runbooks/blob/main/incidents/2025-11-billing-sev.md"
@@ -134,8 +141,9 @@ export const channels = [
         author: "You",
         initials: "YO",
         avatarColor: "gray",
+        avatarUrl: "https://i.pravatar.cc/150?img=68",
         isYou: true,
-        time: "2m ago",
+        time: "10:48am",
         bubbles: [
           "Morning! Dropping a recap of yesterday's launches.",
           "We now have Claude doing auto-summaries for the #release-notes channel."
@@ -144,7 +152,7 @@ export const channels = [
       {
         id: "ai-news-2",
         senderType: "ai",
-        time: "Just now",
+        time: "10:50am",
         bubbles: [
           "I've indexed the last 24 hours of launch notes.",
           "Ask me about any specific service and I'll pull the highlights."
@@ -164,7 +172,8 @@ export const channels = [
         author: "Jordan",
         initials: "J",
         avatarColor: "red",
-        time: "1h ago",
+        avatarUrl: "https://i.pravatar.cc/150?img=15",
+        time: "9:15am",
         bubbles: ["Donut pairings are back next week 🍩"]
       },
       {
@@ -173,7 +182,8 @@ export const channels = [
         author: "Emma",
         initials: "E",
         avatarColor: "green",
-        time: "52m ago",
+        avatarUrl: "https://i.pravatar.cc/150?img=47",
+        time: "9:23am",
         bubbles: ["Also, posting the offsite photos in this channel later today!"]
       }
     ]
@@ -187,78 +197,147 @@ export const channels = [
       {
         id: "bug-1",
         senderType: "human",
-        author: "Sarah",
-        initials: "S",
-        avatarColor: "green",
-        time: "2h ago",
-        bubbles: ["Great! I'll test it out now 👍"]
+        author: "You",
+        initials: "YO",
+        avatarColor: "gray",
+        avatarUrl: "https://i.pravatar.cc/150?img=68",
+        isYou: true,
+        time: "12:29pm",
+        bubbles: ["@shaun @oguz seems like conversations are broken"]
       },
       {
         id: "bug-2",
         senderType: "ai",
-        time: "2h ago",
-        bubbles: [
-          "I can help analyze the deployment logs and check for any potential issues.",
-          "Would you like me to review the staging environment?"
-        ]
+        time: "12:29pm",
+        bubbles: ["was added to #all-eng by ben."]
       },
       {
         id: "bug-3",
         senderType: "human",
-        author: "Sarah",
-        initials: "S",
-        avatarColor: "green",
-        time: "1h 55m ago",
-        bubbles: ["Thanks! That would be helpful"]
+        author: "You",
+        initials: "YO",
+        avatarColor: "gray",
+        avatarUrl: "https://i.pravatar.cc/150?img=68",
+        isYou: true,
+        time: "12:30pm",
+        bubbles: ["Maybe my fault?"]
       },
       {
         id: "bug-4",
         senderType: "human",
-        author: "You",
-        initials: "YO",
+        author: "oguz",
+        initials: "O",
         avatarColor: "gray",
-        isYou: true,
-        time: "1h 30m ago",
+        avatarUrl: "https://i.pravatar.cc/150?img=14",
+        time: "12:30pm",
         bubbles: [
-          "Everything looks good so far. The new components are rendering perfectly.",
-          "The new UI changes are looking really clean."
+          "ah maybe I didn't communicate that merging a PR auto deploys",
+          "so Shaun hasn't run the migration yet probably",
+          "yeah that's the case. @shaun you around or I can run the migration?"
         ]
       },
       {
         id: "bug-5",
         senderType: "human",
-        author: "Sarah",
-        initials: "S",
-        avatarColor: "green",
-        time: "1h 25m ago",
-        bubbles: ["Should we merge this now?"]
+        author: "You",
+        initials: "YO",
+        avatarColor: "gray",
+        avatarUrl: "https://i.pravatar.cc/150?img=68",
+        isYou: true,
+        time: "12:33pm",
+        bubbles: ["Ah I see"]
       },
       {
         id: "bug-6",
         senderType: "human",
-        author: "Marcus",
-        initials: "M",
+        author: "You",
+        initials: "YO",
         avatarColor: "gray",
-        time: "1h 20m ago",
-        bubbles: ["Awesome! Ready to merge"]
+        avatarUrl: "https://i.pravatar.cc/150?img=68",
+        isYou: true,
+        time: "12:41pm",
+        bubbles: ["oguz migrated service back!"]
       },
       {
         id: "bug-7",
-        senderType: "ai",
-        time: "33m ago",
-        bubbles: [
-          "Based on the test results, all checks have passed successfully.",
-          "The deployment is ready for production."
-        ]
+        senderType: "human",
+        author: "oguz",
+        initials: "O",
+        avatarColor: "gray",
+        avatarUrl: "https://i.pravatar.cc/150?img=14",
+        time: "12:41pm",
+        bubbles: ["yeah it is just one command anyways 😁"]
       },
       {
         id: "bug-8",
         senderType: "human",
-        author: "Sarah",
-        initials: "S",
-        avatarColor: "green",
-        time: "30m ago",
-        bubbles: ["Yeah, I think we're good to go 👌"]
+        author: "You",
+        initials: "YO",
+        avatarColor: "gray",
+        avatarUrl: "https://i.pravatar.cc/150?img=68",
+        isYou: true,
+        time: "12:41pm",
+        bubbles: ["yeah"]
+      },
+      {
+        id: "bug-9",
+        senderType: "human",
+        author: "oguz",
+        initials: "O",
+        avatarColor: "gray",
+        avatarUrl: "https://i.pravatar.cc/150?img=14",
+        time: "12:41pm",
+        bubbles: ["sorry my bad, should've communicated the continuous deployment"]
+      },
+      {
+        id: "bug-10",
+        senderType: "ai",
+        time: "12:42pm",
+        bubbles: [
+          "Oh hey, just seeing this now. I pushed up the new image but haven't deployed it yet, was just about to!",
+          "I'd like to try running the migration if it hasn't been done yet @oguz"
+        ]
+      },
+      {
+        id: "bug-11",
+        senderType: "human",
+        author: "oguz",
+        initials: "O",
+        avatarColor: "gray",
+        avatarUrl: "https://i.pravatar.cc/150?img=14",
+        time: "12:43pm",
+        bubbles: ["sorry I just did 😔"]
+      },
+      {
+        id: "bug-12",
+        senderType: "human",
+        author: "You",
+        initials: "YO",
+        avatarColor: "gray",
+        avatarUrl: "https://i.pravatar.cc/150?img=68",
+        isYou: true,
+        time: "12:43pm",
+        bubbles: ["yeah service was broken for 10 mins"]
+      },
+      {
+        id: "bug-13",
+        senderType: "ai",
+        time: "12:44pm",
+        bubbles: [
+          "ah maybe I didn't communicate that merging a PR auto deploys",
+          "Oh, yeah that'll do it",
+          "no prob (edited)"
+        ]
+      },
+      {
+        id: "bug-14",
+        senderType: "human",
+        author: "oguz",
+        initials: "O",
+        avatarColor: "gray",
+        avatarUrl: "https://i.pravatar.cc/150?img=14",
+        time: "12:44pm",
+        bubbles: ["yeah it basically pushed the new image and deployed automatically"]
       }
     ]
   },
@@ -274,7 +353,8 @@ export const channels = [
         author: "Chris",
         initials: "C",
         avatarColor: "gray",
-        time: "Today",
+        avatarUrl: "https://i.pravatar.cc/150?img=14",
+        time: "9:00am",
         bubbles: [
           "Yesterday: finished refactor of the logging pipeline.",
           "Today: pairing with Taylor on the new alerting rules."
@@ -294,8 +374,9 @@ export const channels = [
         author: "You",
         initials: "YO",
         avatarColor: "gray",
+        avatarUrl: "https://i.pravatar.cc/150?img=68",
         isYou: true,
-        time: "Today",
+        time: "10:30am",
         bubbles: [
           "v0.14.0 is live:",
           "• New Claude-powered bug triage helper\n• Improved DM presence indicators"
@@ -315,13 +396,14 @@ export const channels = [
         author: "Jordan",
         initials: "J",
         avatarColor: "red",
-        time: "1h ago",
+        avatarUrl: "https://i.pravatar.cc/150?img=15",
+        time: "2:30pm",
         bubbles: ["shipped to production ✅"]
       },
       {
         id: "health-2",
         senderType: "ai",
-        time: "58m ago",
+        time: "2:32pm",
         bubbles: [
           "All regions are healthy. P95 latency is trending slightly down after the deploy."
         ]
@@ -336,6 +418,7 @@ export const dms = [
     name: "Marcus, Alex",
     initials: "M",
     avatarColor: "gray",
+    avatarUrl: "https://i.pravatar.cc/150?img=60",
     status: "online",
     preview: "I'll push the fix after lunch."
   },
@@ -344,6 +427,7 @@ export const dms = [
     name: "Emma, Marcus, Chris, Taylor",
     initials: "E",
     avatarColor: "green",
+    avatarUrl: "https://i.pravatar.cc/150?img=47",
     status: "online",
     preview: "recapping the bug triage notes now…"
   },
@@ -352,6 +436,7 @@ export const dms = [
     name: "Jordan",
     initials: "J",
     avatarColor: "red",
+    avatarUrl: "https://i.pravatar.cc/150?img=15",
     status: "online",
     preview: "shipped to production ✅"
   },
@@ -360,6 +445,7 @@ export const dms = [
     name: "Chris",
     initials: "C",
     avatarColor: "gray",
+    avatarUrl: "https://i.pravatar.cc/150?img=14",
     status: "away",
     preview: "ping me when logs look clean."
   }

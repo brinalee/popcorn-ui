@@ -1,38 +1,43 @@
-/* Incident Management Chat - Clean Professional Theme */
+/* iChat-Style Light Theme */
 
 :root {
-  /* Dark backgrounds */
-  --bg-dark: #0a0a0b;
-  --bg-darker: #050505;
-  --bg-card: #1a1a1c;
-  --bg-sidebar: #1a1a1c;
-  --bg-header: #1a1a1c;
-  --bg-input: #222224;
+  /* Light neutral backgrounds */
+  --bg-main: #F5F5F5;
+  --bg-chat: #EDEDED;
+  --bg-sidebar: #F2F2F2;
+  --bg-card: #FFFFFF;
+  --bg-header: #F8F8F8;
+  --bg-input: #FFFFFF;
+
+  /* Selection blue */
+  --selection-blue: #4277d0;
 
   /* Accent colors */
-  --accent-green: #00c853;
-  --accent-green-light: #69f0ae;
-  --accent-red: #ff5252;
-  --accent-blue: #448aff;
+  --accent-green: #28ca42;
+  --accent-red: #ff5f57;
+  --accent-yellow: #ffbd2e;
 
   /* Text colors */
-  --text-primary: #ffffff;
-  --text-secondary: #b0b0b0;
-  --text-tertiary: #6b6b6b;
-  --text-muted: #4a4a4a;
+  --text-primary: #333333;
+  --text-secondary: #666666;
+  --text-tertiary: #999999;
+  --text-muted: #AAAAAA;
 
   /* Border colors */
-  --border-subtle: rgba(255, 255, 255, 0.08);
-  --border-medium: rgba(255, 255, 255, 0.12);
+  --border-subtle: #E8E8E8;
+  --border-medium: #E0E0E0;
+  --border-dark: #D0D0D0;
 
-  /* Simple shadows */
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.4);
+  /* Soft drop shadows */
+  --shadow-soft: 0 2px 4px rgba(0, 0, 0, 0.08);
+  --shadow-bubble: 0 1px 3px rgba(0, 0, 0, 0.1);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 2px 4px rgba(0, 0, 0, 0.1);
 
-  /* Font */
+  /* Font - keeping Inter as requested */
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   color: var(--text-primary);
-  background-color: var(--bg-dark);
+  background-color: var(--bg-main);
 
   /* Font smoothing */
   -webkit-font-smoothing: antialiased;
@@ -53,8 +58,8 @@ body,
   height: 100%;
 }
 
-/* Clean dark background */
+/* Simple light background */
 body {
   overflow: hidden;
-  background: var(--bg-dark);
+  background: var(--bg-main);
 }
