@@ -1,10 +1,10 @@
-/* index.css */
+/* index.css – Classic Mac-ish base */
 
 :root {
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
-    "Segoe UI", sans-serif;
-  color: #111827;
-  background-color: #f3f4f6;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Geneva",
+    "Tahoma", sans-serif;
+  color: #111111;
+  background-color: #bfbfbf;
 }
 
 *,
@@ -21,6 +21,16 @@ body,
   height: 100%;
 }
 
+/* Retro desktop background */
+
 body {
   overflow: hidden;
+  background:
+    repeating-linear-gradient(
+      45deg,
+      #c7c7c7 0,
+      #c7c7c7 2px,
+      #bdbdbd 2px,
+      #bdbdbd 4px
+    );
 }
