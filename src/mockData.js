@@ -2,6 +2,127 @@
 
 export const channels = [
   {
+    id: "sev-incidents",
+    label: "sev-incidents",
+    iconType: "hash",
+    pill: "Production SEV",
+    messages: [
+      {
+        id: "sev-1",
+        senderType: "human",
+        author: "Brina",
+        initials: "B",
+        avatarColor: "gray",
+        time: "09:41",
+        bubbles: [
+          "Anyone seeing elevated 500s on api-gateway? Pager just went off."
+        ]
+      },
+      {
+        id: "sev-2",
+        senderType: "human",
+        author: "Tom",
+        initials: "T",
+        avatarColor: "gray",
+        time: "09:42",
+        bubbles: [
+          "Yep, prod-us-west-2 is flapping. Dashboards show a spike starting right after deploy #428."
+        ]
+      },
+      {
+        id: "sev-3",
+        senderType: "human",
+        author: "Aisha",
+        initials: "A",
+        avatarColor: "gray",
+        time: "09:43",
+        bubbles: [
+          "Looking at the logs, most errors are on /billing/charge. Could be the currency refactor?"
+        ]
+      },
+      {
+        id: "sev-4",
+        senderType: "agent",
+        author: "XML Agent",
+        initials: "A",
+        avatarColor: "green",
+        agentLabel: "XML AGENT",
+        time: "09:44",
+        bubbles: [
+          "I'm seeing error spikes in deploy #428 around the /billing route. It correlates with this PR in GitHub: https://github.com/kewl/infra-incidents/pull/128"
+        ]
+      },
+      {
+        id: "sev-5",
+        senderType: "human",
+        author: "Devon",
+        initials: "D",
+        avatarColor: "gray",
+        time: "09:45",
+        bubbles: [
+          "PR 128 changed the retry logic on Stripe timeouts. Maybe we're retrying in a way that double-charges?"
+        ]
+      },
+      {
+        id: "sev-6",
+        senderType: "human",
+        author: "Tom",
+        initials: "T",
+        avatarColor: "gray",
+        time: "09:46",
+        bubbles: [
+          "Linking another one: https://github.com/kewl/infra-incidents/pull/131 – added a new feature flag `BILLING_STRICT_MODE`."
+        ]
+      },
+      {
+        id: "sev-7",
+        senderType: "agent",
+        author: "XML Agent",
+        initials: "A",
+        avatarColor: "green",
+        agentLabel: "XML AGENT",
+        time: "09:47",
+        bubbles: [
+          "Comparing PR 128 and PR 131: PR 131 enables BILLING_STRICT_MODE by default in production. That flag is only tested in staging. Suggest: roll back PR 131 or flip the flag off."
+        ]
+      },
+      {
+        id: "sev-8",
+        senderType: "human",
+        author: "Aisha",
+        initials: "A",
+        avatarColor: "gray",
+        time: "09:48",
+        bubbles: [
+          "Agree. I'll toggle BILLING_STRICT_MODE off in prod and watch 500s."
+        ]
+      },
+      {
+        id: "sev-9",
+        senderType: "human",
+        author: "Brina",
+        initials: "B",
+        avatarColor: "gray",
+        time: "09:49",
+        bubbles: [
+          "On it. Also let's capture a quick timeline in the incident doc; dropping link: https://github.com/kewl/runbooks/blob/main/incidents/2025-11-billing-sev.md"
+        ]
+      },
+      {
+        id: "sev-10",
+        senderType: "agent",
+        author: "XML Agent",
+        initials: "A",
+        avatarColor: "green",
+        agentLabel: "XML AGENT",
+        time: "09:50",
+        bubbles: [
+          "I'll append the current hypothesis and mitigation to the incident doc and pin this thread to #sev-incidents for later review."
+        ]
+      }
+    ]
+  },
+  {
     id: "ai-news",
     label: "ai-news",
     iconType: "bolt", // "bolt" or "hash"

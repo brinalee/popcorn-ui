@@ -77,22 +77,56 @@ function ChatWindow({ channel }) {
 
 function MessageGroup({ msg }) {
   const isAI = msg.senderType === "ai";
+  const isAgent = msg.senderType === "agent";
 
+  // Agent message: special green box styling
+  if (isAgent) {
+    return (
+      <div className="message-group agent">
+        <div className="msg-avatar-column">
+          <div className={`avatar ${msg.avatarColor || "green"}`}>
+            {msg.initials || "A"}
+          </div>
+        </div>
+
+        <div className="msg-content">
+          <div className="msg-meta">
+            <span className="msg-name">{msg.author || "Agent"}</span>
+            {msg.time && <span className="msg-time">{msg.time}</span>}
+          </div>
+
+          {msg.bubbles.map((bubble, idx) => (
+            <div key={idx} className="msg-bubble agent">
+              <div className="agent-label">{msg.agentLabel || "XML AGENT"}</div>
+              {bubble}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // AI message: clean styling without avatar
   if (isAI) {
-    // AI: no avatar, no name
     return (
       <div className="message-group ai">
-        <div style={{ flex: 1 }}>
+        <div className="msg-avatar-column">
+          <div className="avatar gray">
+            AI
+          </div>
+        </div>
+
+        <div className="msg-content">
+          <div className="msg-meta">
+            <span className="msg-name">AI Assistant</span>
+            {msg.time && <span className="msg-time">{msg.time}</span>}
+          </div>
+
           {msg.bubbles.map((bubble, idx) => (
             <div key={idx} className="msg-bubble ai">
               {bubble}
             </div>
           ))}
-          {msg.time && (
-            <div className="msg-meta" style={{ marginTop: 4 }}>
-              <span className="msg-time">{msg.time}</span>
-            </div>
-          )}
         </div>
       </div>
     );
@@ -107,7 +141,7 @@ function MessageGroup({ msg }) {
         </div>
       </div>
 
-      <div style={{ flex: 1 }}>
+      <div className="msg-content">
         <div className="msg-meta">
           <span className="msg-name">{msg.author || "User"}</span>
           {msg.time && <span className="msg-time">{msg.time}</span>}

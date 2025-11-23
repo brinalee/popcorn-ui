@@ -57,18 +57,23 @@ function Header({ activeSection, onChangeSection }) {
   return (
     <header className="app-header">
       <div className="header-left">
-        {/* Workspace + badge (clickable) */}
+        {/* Channel name with incident badge */}
         <button
           className="workspace-button"
           type="button"
           onClick={handleWorkspaceClick}
         >
-          <span className="workspace-name">KEWL</span>
-          <span className="workspace-badge">3</span>
-          <span className="workspace-chevron">▾</span>
+          <span className="workspace-name"># sev-incidents</span>
+          <span className="workspace-badge">LIVE INCIDENT</span>
         </button>
 
-        {/* Tabs */}
+        {/* Incident description */}
+        <div className="incident-description">
+          Production SEV: billing 500s spike · Region: us-west-2
+        </div>
+
+        {/* Tabs (optional, removed for cleaner incident view) */}
+        {/*
         <nav className="header-tabs">
           <button
             type="button"
@@ -89,6 +94,7 @@ function Header({ activeSection, onChangeSection }) {
             App Platform
           </button>
         </nav>
+        */}
       </div>
 
       {/* Right side could hold icons later */}

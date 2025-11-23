@@ -1,10 +1,42 @@
-/* index.css – Classic Mac-ish base */
+/* Incident Management Chat - Clean Professional Theme */
 
 :root {
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Geneva",
-    "Tahoma", sans-serif;
-  color: #111111;
-  background-color: #bfbfbf;
+  /* Dark backgrounds */
+  --bg-dark: #0a0a0b;
+  --bg-darker: #050505;
+  --bg-card: #1a1a1c;
+  --bg-sidebar: #1a1a1c;
+  --bg-header: #1a1a1c;
+  --bg-input: #222224;
+
+  /* Accent colors */
+  --accent-green: #00c853;
+  --accent-green-light: #69f0ae;
+  --accent-red: #ff5252;
+  --accent-blue: #448aff;
+
+  /* Text colors */
+  --text-primary: #ffffff;
+  --text-secondary: #b0b0b0;
+  --text-tertiary: #6b6b6b;
+  --text-muted: #4a4a4a;
+
+  /* Border colors */
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-medium: rgba(255, 255, 255, 0.12);
+
+  /* Simple shadows */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.4);
+
+  /* Font */
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  color: var(--text-primary);
+  background-color: var(--bg-dark);
+
+  /* Font smoothing */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 *,
@@ -21,16 +53,8 @@ body,
   height: 100%;
 }
 
-/* Retro desktop background */
-
+/* Clean dark background */
 body {
   overflow: hidden;
-  background:
-    repeating-linear-gradient(
-      45deg,
-      #c7c7c7 0,
-      #c7c7c7 2px,
-      #bdbdbd 2px,
-      #bdbdbd 4px
-    );
+  background: var(--bg-dark);
 }
