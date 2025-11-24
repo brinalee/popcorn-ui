@@ -1,10 +1,10 @@
 // src/components/ReactionPill.jsx
 import React, { useMemo } from "react";
 
-function ReactionPill({ reactions }) {
+function ReactionPill({ reactions, onToggle }) {
   const aggregated = useMemo(() => {
     if (!reactions || reactions.length === 0) {
-      return { items: [], totalCount: 0 };
+      return [];
     }
 
     // Count reactions by emoji
@@ -14,32 +14,33 @@ function ReactionPill({ reactions }) {
     });
 
     // Convert to array and sort by count (most used first)
-    const items = Array.from(counts.entries())
+    return Array.from(counts.entries())
       .map(([emoji, count]) => ({ emoji, count }))
       .sort((a, b) => b.count - a.count);
-
-    const totalCount = reactions.length;
-
-    return { items, totalCount };
   }, [reactions]);
 
-  if (aggregated.items.length === 0) {
+  if (aggregated.length === 0) {
     return null;
   }
 
-  // Show up to 3 most-used emojis
-  const visibleItems = aggregated.items.slice(0, 3);
-
   return (
-    <div className="message-reactions-pill">
-      {visibleItems.map((item) => (
-        <span key={item.emoji} className="message-reaction-emoji">
-          {item.emoji}
-        </span>
+    <div className="message-reactions-row">
+      {aggregated.map((item) => (
+        <button
+          key={item.emoji}
+          type="button"
+          className="message-reaction-chip"
+          onClick={() => onToggle(item.emoji)}
+          aria-label={`${item.emoji} ${item.count} reaction${item.count !== 1 ? 's' : ''}`}
+        >
+          <span className="message-reaction-chip-emoji">
+            {item.emoji}
+          </span>
+          <span className="message-reaction-chip-count">
+            {item.count}
+          </span>
+        </button>
       ))}
-      <span className="message-reaction-count">
-        {aggregated.totalCount}
-      </span>
     </div>
   );
 }

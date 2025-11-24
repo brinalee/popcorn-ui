@@ -203,7 +203,17 @@ export const channels = [
         avatarUrl: "https://i.pravatar.cc/150?img=68",
         isYou: true,
         time: "12:29pm",
-        bubbles: ["@shaun @oguz seems like conversations are broken"]
+        bubbles: ["@shaun @oguz seems like conversations are broken"],
+        replySummary: {
+          threadId: "thread-bug-1",
+          replyCount: 5,
+          lastReplyAt: "2025-06-15T12:38:00Z",
+          participantAvatarUrls: [
+            "https://i.pravatar.cc/150?img=14",
+            "https://i.pravatar.cc/150?img=33",
+            "https://i.pravatar.cc/150?img=47"
+          ]
+        }
       },
       {
         id: "bug-2",
@@ -234,7 +244,17 @@ export const channels = [
           "ah maybe I didn't communicate that merging a PR auto deploys",
           "so Shaun hasn't run the migration yet probably",
           "yeah that's the case. @shaun you around or I can run the migration?"
-        ]
+        ],
+        replySummary: {
+          threadId: "thread-bug-4",
+          replyCount: 3,
+          lastReplyAt: "2025-06-15T12:45:00Z",
+          participantAvatarUrls: [
+            "https://i.pravatar.cc/150?img=68",
+            "https://i.pravatar.cc/150?img=14",
+            "https://i.pravatar.cc/150?img=33"
+          ]
+        }
       },
       {
         id: "bug-5",
@@ -448,5 +468,105 @@ export const dms = [
     avatarUrl: "https://i.pravatar.cc/150?img=14",
     status: "away",
     preview: "ping me when logs look clean."
+  }
+];
+
+// Thread data
+export const threads = [
+  {
+    id: "thread-bug-1",
+    channelId: "bug-triaging",
+    rootMessageId: "bug-1",
+    messages: [
+      {
+        id: "thread-bug-1-reply-1",
+        senderType: "human",
+        author: "Shaun",
+        initials: "S",
+        avatarColor: "gray",
+        avatarUrl: "https://i.pravatar.cc/150?img=33",
+        time: "12:30pm",
+        bubbles: ["Yeah I saw that too. Let me check the deployment logs."]
+      },
+      {
+        id: "thread-bug-1-reply-2",
+        senderType: "human",
+        author: "Marcus",
+        initials: "M",
+        avatarColor: "gray",
+        avatarUrl: "https://i.pravatar.cc/150?img=14",
+        time: "12:32pm",
+        bubbles: ["Looks like the migration didn't run. That's why conversations are throwing errors."]
+      },
+      {
+        id: "thread-bug-1-reply-3",
+        senderType: "human",
+        author: "You",
+        initials: "YO",
+        avatarColor: "gray",
+        avatarUrl: "https://i.pravatar.cc/150?img=68",
+        isYou: true,
+        time: "12:35pm",
+        bubbles: ["Should we rollback or just run the migration?"]
+      },
+      {
+        id: "thread-bug-1-reply-4",
+        senderType: "human",
+        author: "Emma",
+        initials: "E",
+        avatarColor: "green",
+        avatarUrl: "https://i.pravatar.cc/150?img=47",
+        time: "12:37pm",
+        bubbles: ["Run the migration, the code changes are good."]
+      },
+      {
+        id: "thread-bug-1-reply-5",
+        senderType: "human",
+        author: "Shaun",
+        initials: "S",
+        avatarColor: "gray",
+        avatarUrl: "https://i.pravatar.cc/150?img=33",
+        time: "12:38pm",
+        bubbles: ["On it now 👍"]
+      }
+    ]
+  },
+  {
+    id: "thread-bug-4",
+    channelId: "bug-triaging",
+    rootMessageId: "bug-4",
+    messages: [
+      {
+        id: "thread-bug-4-reply-1",
+        senderType: "human",
+        author: "You",
+        initials: "YO",
+        avatarColor: "gray",
+        avatarUrl: "https://i.pravatar.cc/150?img=68",
+        isYou: true,
+        time: "12:40pm",
+        bubbles: ["No worries, I can wait!"]
+      },
+      {
+        id: "thread-bug-4-reply-2",
+        senderType: "human",
+        author: "Shaun",
+        initials: "S",
+        avatarColor: "gray",
+        avatarUrl: "https://i.pravatar.cc/150?img=33",
+        time: "12:43pm",
+        bubbles: ["Thanks for understanding. Migration is running now."]
+      },
+      {
+        id: "thread-bug-4-reply-3",
+        senderType: "human",
+        author: "Marcus",
+        initials: "M",
+        avatarColor: "gray",
+        avatarUrl: "https://i.pravatar.cc/150?img=14",
+        time: "12:45pm",
+        bubbles: ["All good now! Conversations are working again."]
+      }
+    ]
   }
 ];

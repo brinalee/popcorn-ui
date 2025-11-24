@@ -1,12 +1,25 @@
 // src/components/ChatWindow.jsx
 import React, { useState, useRef, useEffect } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import ReactionBar from "./ReactionBar";
 import EmojiPickerPanel from "./EmojiPickerPanel";
 import ReactionPill from "./ReactionPill";
+import ReplySummaryRow from "./ReplySummaryRow";
+import { threads } from "../mockData";
 
-function ChatWindow({ channel }) {
+function ChatWindow({ channel, threadId = null }) {
+  const navigate = useNavigate();
+  const { channelId } = useParams();
+
+  // Determine if we're in thread mode and get the appropriate messages
+  const thread = threadId ? threads.find(t => t.id === threadId) : null;
+  const rootMessage = thread ? channel.messages.find(m => m.id === thread.rootMessageId) : null;
+  const displayMessages = thread
+    ? (rootMessage ? [rootMessage, ...thread.messages] : thread.messages)
+    : channel.messages;
+
   const [draft, setDraft] = useState("");
-  const [localMessages, setLocalMessages] = useState(channel.messages);
+  const [localMessages, setLocalMessages] = useState(displayMessages);
   const [isAttachMenuOpen, setIsAttachMenuOpen] = useState(false);
   const [isFormattingOn, setIsFormattingOn] = useState(false);
   const [showScrollDown, setShowScrollDown] = useState(false);
@@ -15,10 +28,13 @@ function ChatWindow({ channel }) {
   const [openMenuId, setOpenMenuId] = useState(null);
   const [activeReactionBubbleId, setActiveReactionBubbleId] = useState(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [chipReactionBarMessageId, setChipReactionBarMessageId] = useState(null);
   const textareaRef = useRef(null);
   const reactionBarRef = useRef(null);
   const emojiPickerRef = useRef(null);
   const reactButtonRefs = useRef({});
+  const chipReactButtonRefs = useRef({});
+  const chipReactionBarRef = useRef(null);
   const chatWrapperRef = useRef(null);
   const attachMenuRef = useRef(null);
   const addButtonRef = useRef(null);
@@ -46,16 +62,16 @@ function ChatWindow({ channel }) {
     }
   };
 
-  // Whenever the channel changes, sync local messages and scroll to bottom:
+  // Whenever the channel or thread changes, sync local messages and scroll to bottom:
   useEffect(() => {
-    setLocalMessages(channel.messages);
+    setLocalMessages(displayMessages);
     setDraft("");
     setUserHasScrolled(false);
     // Reset scroll time so auto-scroll works immediately
     lastUserScrollTimeRef.current = 0;
     // Use setTimeout to ensure DOM has updated
     setTimeout(scrollToBottom, 0);
-  }, [channel]);
+  }, [channel, threadId]);
 
   // Scroll to bottom when messages change (only if user was already at bottom)
   useEffect(() => {
@@ -230,12 +246,6 @@ function ChatWindow({ channel }) {
       return prevMessages.map((msg) => {
         if (msg.id !== messageId) return msg;
 
-        // Check if this is an AI message - don't allow reactions
-        if (msg.senderType === "ai") {
-          console.log("Reactions not allowed on AI messages");
-          return msg;
-        }
-
         // Get current reactions for this bubble (immutably)
         const currentReactions = msg.reactions?.[bubbleIndex] || [];
 
@@ -272,31 +282,49 @@ function ChatWindow({ channel }) {
 
   // Handle click outside and Escape key for reaction menus
   useEffect(() => {
-    if (!activeReactionBubbleId && !showEmojiPicker) return;
+    if (!activeReactionBubbleId && !showEmojiPicker && !chipReactionBarMessageId) return;
 
     function handleClickOutside(event) {
       const target = event.target;
       const activeReactButton = reactButtonRefs.current[activeReactionBubbleId];
+      const activeChipButton = chipReactButtonRefs.current[chipReactionBarMessageId];
 
-      if (
-        reactionBarRef.current &&
-        !reactionBarRef.current.contains(target) &&
-        emojiPickerRef.current &&
-        !emojiPickerRef.current.contains(target) &&
-        activeReactButton &&
-        !activeReactButton.contains(target)
-      ) {
+      // Check if click is inside any inline reaction UI elements
+      const clickInsideInlineUI = (
+        (reactionBarRef.current && reactionBarRef.current.contains(target)) ||
+        (emojiPickerRef.current && emojiPickerRef.current.contains(target)) ||
+        (activeReactButton && activeReactButton.contains(target))
+      );
+
+      // Check if click is inside any chip reaction UI elements
+      const clickInsideChipUI = (
+        (chipReactionBarRef.current && chipReactionBarRef.current.contains(target)) ||
+        (activeChipButton && activeChipButton.contains(target))
+      );
+
+      // Close inline reaction UI if active and click is outside
+      if (activeReactionBubbleId && !clickInsideInlineUI) {
         setActiveReactionBubbleId(null);
+        setShowEmojiPicker(false);
+      }
+
+      // Close chip reaction UI if active and click is outside
+      if (chipReactionBarMessageId && !clickInsideChipUI) {
+        setChipReactionBarMessageId(null);
         setShowEmojiPicker(false);
       }
     }
 
     function handleKeyDown(event) {
       if (event.key === "Escape") {
-        if (showEmojiPicker) {
+        if (showEmojiPicker && chipReactionBarMessageId) {
           setShowEmojiPicker(false);
-        } else {
+        } else if (showEmojiPicker && activeReactionBubbleId) {
+          setShowEmojiPicker(false);
+        } else if (activeReactionBubbleId) {
           setActiveReactionBubbleId(null);
+        } else if (chipReactionBarMessageId) {
+          setChipReactionBarMessageId(null);
         }
       }
     }
@@ -307,24 +335,59 @@ function ChatWindow({ channel }) {
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [activeReactionBubbleId, showEmojiPicker]);
+  }, [activeReactionBubbleId, showEmojiPicker, chipReactionBarMessageId]);
 
   const iconIsHash = channel.iconType === "hash";
+
+  const handleBackToChannel = () => {
+    navigate(`/channel/${channelId}`);
+  };
 
   return (
     <main className="main">
       {/* Top bar */}
       <header className="top-bar">
-        <div className="top-bar-title">
-          <span
-            className={
-              "sidebar-icon " + (iconIsHash ? "hash" : "bolt")
-            }
-          >
-            {iconIsHash ? "#" : "⚡"}
-          </span>
-          <span>{channel.label}</span>
-        </div>
+        {threadId ? (
+          <div className="top-bar-title">
+            <button
+              type="button"
+              className="top-bar-back-button"
+              onClick={handleBackToChannel}
+              aria-label="Back to channel"
+            >
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                <path
+                  d="M12.5 15L7.5 10L12.5 5"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+            <span
+              className={
+                "sidebar-icon " + (iconIsHash ? "hash" : "bolt")
+              }
+            >
+              {iconIsHash ? "#" : "⚡"}
+            </span>
+            <span>{channel.label}</span>
+            <span className="top-bar-breadcrumb-separator">›</span>
+            <span className="top-bar-breadcrumb-thread">Thread</span>
+          </div>
+        ) : (
+          <div className="top-bar-title">
+            <span
+              className={
+                "sidebar-icon " + (iconIsHash ? "hash" : "bolt")
+              }
+            >
+              {iconIsHash ? "#" : "⚡"}
+            </span>
+            <span>{channel.label}</span>
+          </div>
+        )}
       </header>
 
       {/* Messages */}
@@ -350,6 +413,10 @@ function ChatWindow({ channel }) {
                 reactButtonRefs={reactButtonRefs}
                 reactionBarRef={reactionBarRef}
                 emojiPickerRef={emojiPickerRef}
+                chipReactionBarMessageId={chipReactionBarMessageId}
+                setChipReactionBarMessageId={setChipReactionBarMessageId}
+                chipReactButtonRefs={chipReactButtonRefs}
+                chipReactionBarRef={chipReactionBarRef}
               />
             );
           })}
@@ -368,195 +435,84 @@ function ChatWindow({ channel }) {
               <span className="add-button-icon">+</span>
             </button>
 
-            {isAttachMenuOpen && (
-              <div className="attach-menu" ref={attachMenuRef}>
-                <button
-                  className="attach-menu-item"
-                  onClick={() => handleAttachOption('file')}
-                >
-                  <svg
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path
-                      d="M7 3h7l5 5v13H7z"
-                      stroke="#6366F1"
-                      strokeWidth="1.7"
-                      strokeLinejoin="round"
-                    />
-                    <path
-                      d="M14 3v5h5"
-                      stroke="#6366F1"
-                      strokeWidth="1.7"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                  <span>File</span>
-                </button>
-
-                <button
-                  className="attach-menu-item"
-                  onClick={() => handleAttachOption('photos')}
-                >
-                  <svg
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <rect
-                      x="4"
-                      y="5"
-                      width="16"
-                      height="14"
-                      rx="2.5"
-                      ry="2.5"
-                      stroke="#22C55E"
-                      strokeWidth="1.7"
-                    />
-                    <circle cx="9" cy="10" r="1.7" fill="#22C55E" />
-                    <path
-                      d="M7 17l3.5-3 2.5 2 3-3 3 4"
-                      stroke="#22C55E"
-                      strokeWidth="1.7"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                  <span>Photos</span>
-                </button>
-
-                <button
-                  className="attach-menu-item"
-                  onClick={() => handleAttachOption('camera')}
-                >
-                  <svg
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <rect
-                      x="3.5"
-                      y="7"
-                      width="17"
-                      height="12"
-                      rx="3"
-                      ry="3"
-                      stroke="#0EA5E9"
-                      strokeWidth="1.7"
-                    />
-                    <path
-                      d="M9 7l1-2h4l1 2"
-                      stroke="#0EA5E9"
-                      strokeWidth="1.7"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                    <circle
-                      cx="12"
-                      cy="13"
-                      r="3.2"
-                      stroke="#0EA5E9"
-                      strokeWidth="1.7"
-                    />
-                    <circle cx="12" cy="13" r="1.2" fill="#0EA5E9" />
-                  </svg>
-                  <span>Camera</span>
-                </button>
-
-                <button
-                  className="attach-menu-item"
-                  onClick={() => handleAttachOption('gif')}
-                >
-                  <svg
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <rect
-                      x="4"
-                      y="6"
-                      width="16"
-                      height="12"
-                      rx="3"
-                      ry="3"
-                      stroke="#F97316"
-                      strokeWidth="1.7"
-                    />
-                    <text
-                      x="7"
-                      y="15"
-                      fontSize="7"
-                      fontFamily="system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-                      fill="#F97316"
-                    >
-                      GIF
-                    </text>
-                  </svg>
-                  <span>GIF</span>
-                </button>
-
-                <button
-                  className="attach-menu-item"
-                  onClick={() => handleAttachOption('emoji')}
-                >
-                  <svg
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <circle
-                      cx="12"
-                      cy="12"
-                      r="9"
-                      stroke="#EAB308"
-                      strokeWidth="1.7"
-                    />
-                    <circle cx="9" cy="10" r="1.2" fill="#EAB308" />
-                    <circle cx="15" cy="10" r="1.2" fill="#EAB308" />
-                    <path
-                      d="M8 14s1.5 2 4 2 4-2 4-2"
-                      stroke="#EAB308"
-                      strokeWidth="1.7"
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                  <span>Emoji</span>
-                </button>
-
-                <button
-                  className="attach-menu-item"
-                  onClick={toggleFormatting}
-                >
-                  <svg
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path
-                      d="M4 7V4h16v3M9 20h6M12 4v16"
-                      stroke="#8B5CF6"
-                      strokeWidth="1.7"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                  <span>{isFormattingOn ? "✓ Formatting" : "Formatting"}</span>
-                </button>
-              </div>
-            )}
+            <ActionMenu
+              items={[
+                {
+                  key: 'file',
+                  label: 'File',
+                  icon: (
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                      <path d="M7 3h7l5 5v13H7z" stroke="#6366F1" strokeWidth="1.7" strokeLinejoin="round" />
+                      <path d="M14 3v5h5" stroke="#6366F1" strokeWidth="1.7" strokeLinejoin="round" />
+                    </svg>
+                  ),
+                  onClick: () => handleAttachOption('file')
+                },
+                {
+                  key: 'photos',
+                  label: 'Photos',
+                  icon: (
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                      <rect x="4" y="5" width="16" height="14" rx="2.5" ry="2.5" stroke="#22C55E" strokeWidth="1.7" />
+                      <circle cx="9" cy="10" r="1.7" fill="#22C55E" />
+                      <path d="M7 17l3.5-3 2.5 2 3-3 3 4" stroke="#22C55E" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  ),
+                  onClick: () => handleAttachOption('photos')
+                },
+                {
+                  key: 'camera',
+                  label: 'Camera',
+                  icon: (
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                      <rect x="3.5" y="7" width="17" height="12" rx="3" ry="3" stroke="#0EA5E9" strokeWidth="1.7" />
+                      <path d="M9 7l1-2h4l1 2" stroke="#0EA5E9" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+                      <circle cx="12" cy="13" r="3.2" stroke="#0EA5E9" strokeWidth="1.7" />
+                      <circle cx="12" cy="13" r="1.2" fill="#0EA5E9" />
+                    </svg>
+                  ),
+                  onClick: () => handleAttachOption('camera')
+                },
+                {
+                  key: 'gif',
+                  label: 'GIF',
+                  icon: (
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                      <rect x="4" y="6" width="16" height="12" rx="3" ry="3" stroke="#F97316" strokeWidth="1.7" />
+                      <text x="7" y="15" fontSize="7" fontFamily="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" fill="#F97316">GIF</text>
+                    </svg>
+                  ),
+                  onClick: () => handleAttachOption('gif')
+                },
+                {
+                  key: 'emoji',
+                  label: 'Emoji',
+                  icon: (
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                      <circle cx="12" cy="12" r="9" stroke="#EAB308" strokeWidth="1.7" />
+                      <circle cx="9" cy="10" r="1.2" fill="#EAB308" />
+                      <circle cx="15" cy="10" r="1.2" fill="#EAB308" />
+                      <path d="M8 14s1.5 2 4 2 4-2 4-2" stroke="#EAB308" strokeWidth="1.7" strokeLinecap="round" />
+                    </svg>
+                  ),
+                  onClick: () => handleAttachOption('emoji')
+                },
+                {
+                  key: 'formatting',
+                  label: isFormattingOn ? "✓ Formatting" : "Formatting",
+                  icon: (
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                      <path d="M4 7V4h16v3M9 20h6M12 4v16" stroke="#8B5CF6" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  ),
+                  onClick: toggleFormatting
+                }
+              ]}
+              isOpen={isAttachMenuOpen}
+              onClose={() => setIsAttachMenuOpen(false)}
+              anchorRef={addButtonRef}
+              position={{ bottom: 'calc(100% - 15px)', left: '12px' }}
+            />
 
             <div className="composer-field">
               <textarea
@@ -616,35 +572,11 @@ function parseMentions(text) {
   });
 }
 
-// More menu component for message actions
-function MoreMenu({ messageId, isOwn, isOpen, onToggle, onClose }) {
-  const chevronRef = useRef(null);
+// Shared ActionMenu component for all dropdown menus
+function ActionMenu({ items, isOpen, onClose, anchorRef, position }) {
   const menuRef = useRef(null);
 
-  // Menu items based on ownership
-  const menuItems = isOwn
-    ? [
-        { key: "reply", label: "Reply" },
-        { key: "reply-public", label: "Reply publicly" },
-        { key: "copy", label: "Copy" },
-        { key: "forward", label: "Forward" },
-        { key: "delete", label: "Delete" },
-      ]
-    : [
-        { key: "reply", label: "Reply" },
-        { key: "reply-public", label: "Reply publicly" },
-        { key: "reply-private", label: "Reply privately" },
-        { key: "copy", label: "Copy" },
-        { key: "forward", label: "Forward" },
-      ];
-
-  // Handle action click
-  const handleAction = (actionKey) => {
-    console.log(`Action: ${actionKey} on message: ${messageId}`);
-    onClose();
-  };
-
-  // Close menu on click outside
+  // Close menu on click outside or Escape key
   useEffect(() => {
     if (!isOpen) return;
 
@@ -653,8 +585,8 @@ function MoreMenu({ messageId, isOwn, isOpen, onToggle, onClose }) {
       if (
         menuRef.current &&
         !menuRef.current.contains(target) &&
-        chevronRef.current &&
-        !chevronRef.current.contains(target)
+        anchorRef?.current &&
+        !anchorRef.current.contains(target)
       ) {
         onClose();
       }
@@ -672,7 +604,194 @@ function MoreMenu({ messageId, isOwn, isOpen, onToggle, onClose }) {
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, anchorRef]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div
+      ref={menuRef}
+      className="menu-card"
+      role="menu"
+      style={position}
+    >
+      {items.map((item) => (
+        <button
+          key={item.key}
+          type="button"
+          className="menu-item"
+          role="menuitem"
+          onClick={item.onClick}
+        >
+          <span className="menu-icon">{item.icon}</span>
+          <span className="menu-label">{item.label}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// More menu component for message actions
+function MoreMenu({ messageId, isOwn, isOpen, onToggle, onClose }) {
+  const chevronRef = useRef(null);
+
+  // Menu item icon/label data
+  const replyIcon = (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M7 12l5-4v3h2.5C16.4 11 18 12.4 18 14.5V17"
+        fill="none"
+        stroke="#2563eb"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+
+  const replyPrivateIcon = (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M7 12l4.5-3.5V12h2.2c1.7 0 3.3 1.4 3.3 3.2V17"
+        fill="none"
+        stroke="#7c3aed"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <rect
+        x="13.5"
+        y="14"
+        width="5"
+        height="4"
+        rx="1"
+        fill="none"
+        stroke="#7c3aed"
+        strokeWidth="1.4"
+      />
+      <path
+        d="M15 14v-1a1.5 1.5 0 013 0v1"
+        fill="none"
+        stroke="#7c3aed"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+
+  const popcorn2Icon = (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M8 9h8l-1.2 9H9.2L8 9z"
+        fill="none"
+        stroke="#f97316"
+        strokeWidth="1.7"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M10 9l-.6 9M12 9v9M14 9l.6 9"
+        fill="none"
+        stroke="#f97316"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+      />
+      <path
+        d="M9 8a2 2 0 013-1.5A2 2 0 0115 8"
+        fill="none"
+        stroke="#fbbf24"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+
+  const copyIcon = (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect
+        x="9"
+        y="9"
+        width="9"
+        height="9"
+        rx="1.7"
+        fill="none"
+        stroke="#0f766e"
+        strokeWidth="1.7"
+      />
+      <rect
+        x="6"
+        y="6"
+        width="9"
+        height="9"
+        rx="1.7"
+        fill="none"
+        stroke="#0f766e"
+        strokeWidth="1.7"
+        opacity="0.7"
+      />
+    </svg>
+  );
+
+  const forwardIcon = (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M8 7l6 5-6 5"
+        fill="none"
+        stroke="#059669"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+
+  const deleteIcon = (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M9 6h6l-.5 13H9.5L9 6z"
+        fill="none"
+        stroke="#ef4444"
+        strokeWidth="1.7"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M8 6h8M10 6l.5-2h3L14 6"
+        fill="none"
+        stroke="#ef4444"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M11 9.5v6M13 9.5v6"
+        fill="none"
+        stroke="#ef4444"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+
+  // Handle action click
+  const handleAction = (actionKey) => {
+    console.log(`Action: ${actionKey} on message: ${messageId}`);
+    onClose();
+  };
+
+  // Menu items based on ownership with onClick handlers
+  const menuItems = isOwn
+    ? [
+        { key: "reply", label: "Reply", icon: replyIcon, onClick: () => handleAction("reply") },
+        { key: "popcorn2", label: "Popcorn2", icon: popcorn2Icon, onClick: () => handleAction("popcorn2") },
+        { key: "copy", label: "Copy", icon: copyIcon, onClick: () => handleAction("copy") },
+        { key: "delete", label: "Delete", icon: deleteIcon, onClick: () => handleAction("delete") },
+      ]
+    : [
+        { key: "reply", label: "Reply", icon: replyIcon, onClick: () => handleAction("reply") },
+        { key: "reply-private", label: "Private", icon: replyPrivateIcon, onClick: () => handleAction("reply-private") },
+        { key: "popcorn2", label: "Popcorn2", icon: popcorn2Icon, onClick: () => handleAction("popcorn2") },
+        { key: "copy", label: "Copy", icon: copyIcon, onClick: () => handleAction("copy") },
+        { key: "delete", label: "Delete", icon: deleteIcon, onClick: () => handleAction("delete") },
+      ];
 
   return (
     <>
@@ -699,21 +818,13 @@ function MoreMenu({ messageId, isOwn, isOpen, onToggle, onClose }) {
         </svg>
       </button>
 
-      {isOpen && (
-        <div ref={menuRef} className="message-more-menu" role="menu">
-          {menuItems.map((item) => (
-            <button
-              key={item.key}
-              type="button"
-              className="message-more-menu-item"
-              role="menuitem"
-              onClick={() => handleAction(item.key)}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-      )}
+      <ActionMenu
+        items={menuItems}
+        isOpen={isOpen}
+        onClose={onClose}
+        anchorRef={chevronRef}
+        position={{ top: 'calc(100% + 6px)', right: 0 }}
+      />
     </>
   );
 }
@@ -730,7 +841,11 @@ function MessageGroup({
   onReaction,
   reactButtonRefs,
   reactionBarRef,
-  emojiPickerRef
+  emojiPickerRef,
+  chipReactionBarMessageId,
+  setChipReactionBarMessageId,
+  chipReactButtonRefs,
+  chipReactionBarRef
 }) {
   const isAI = msg.senderType === "ai";
   const isAgent = msg.senderType === "agent";
@@ -765,28 +880,26 @@ function MessageGroup({
             const isMenuOpen = openMenuId === bubbleId;
             const bubbleReactions = msg.reactions?.[idx] || [];
             return (
-              <div key={idx} className="message-bubble-row">
-                <div className="message-bubble-wrapper">
-                  <div className="msg-bubble agent">
-                    <div className="agent-label">{msg.agentLabel || "XML AGENT"}</div>
-                    {parseMentions(bubble)}
+              <div key={idx} className="message-bubble-container">
+                <div className="message-bubble-row">
+                  <div className="message-bubble-wrapper">
+                    <div className="msg-bubble agent">
+                      <div className="agent-label">{msg.agentLabel || "XML AGENT"}</div>
+                      {parseMentions(bubble)}
 
-                    {/* More menu inside bubble */}
-                    <MoreMenu
-                      messageId={bubbleId}
-                      isOwn={false}
-                      isOpen={isMenuOpen}
-                      onToggle={() => setOpenMenuId(isMenuOpen ? null : bubbleId)}
-                      onClose={() => setOpenMenuId(null)}
-                    />
+                      {/* More menu inside bubble */}
+                      <MoreMenu
+                        messageId={bubbleId}
+                        isOwn={false}
+                        isOpen={isMenuOpen}
+                        onToggle={() => setOpenMenuId(isMenuOpen ? null : bubbleId)}
+                        onClose={() => setOpenMenuId(null)}
+                      />
+                    </div>
                   </div>
 
-                  {/* Reaction pill */}
-                  <ReactionPill reactions={bubbleReactions} />
-                </div>
-
-                {/* Hover actions for emoji and reply - only on last bubble */}
-                {isLastBubble && (
+                  {/* Hover actions for emoji and reply - only on last bubble */}
+                  {isLastBubble && (
                   <div className="message-inline-actions">
                     <div className="reaction-anchor">
                       <button
@@ -842,7 +955,7 @@ function MessageGroup({
                         </div>
                       )}
 
-                      {activeReactionBubbleId === bubbleId && showEmojiPicker && (
+                      {activeReactionBubbleId === bubbleId && showEmojiPicker && !chipReactionBarMessageId && (
                         <div ref={emojiPickerRef}>
                           <EmojiPickerPanel
                             onSelect={(emoji) => onReaction(bubbleId, emoji)}
@@ -882,9 +995,93 @@ function MessageGroup({
                     </button>
                   </div>
                 )}
+                </div>
+
+                {/* Reaction chips below bubble row */}
+                {bubbleReactions.length > 0 && (
+                  <div className="message-reactions-row">
+                    <ReactionPill
+                      reactions={bubbleReactions}
+                      onToggle={(emoji) => onReaction(bubbleId, emoji)}
+                    />
+
+                    {/* Add reaction chip at the end */}
+                    <div className="reaction-anchor reaction-anchor--chip">
+                      <button
+                        ref={(el) => {
+                          if (el) chipReactButtonRefs.current[bubbleId] = el;
+                        }}
+                        type="button"
+                        className="message-reaction-add-btn"
+                        aria-label="Add reaction"
+                        onClick={() => {
+                          setShowEmojiPicker(false);
+                          setActiveReactionBubbleId(null);
+                          setChipReactionBarMessageId(
+                            chipReactionBarMessageId === bubbleId ? null : bubbleId
+                          );
+                        }}
+                      >
+                        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                          <circle
+                            cx="12"
+                            cy="12"
+                            r="8"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.6"
+                          />
+                          <circle cx="9.5" cy="10" r="0.9" fill="currentColor" />
+                          <circle cx="14.5" cy="10" r="0.9" fill="currentColor" />
+                          <path
+                            d="M9 14c.5 1 1.6 1.6 3 1.6s2.5-.6 3-1.6"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.3"
+                            strokeLinecap="round"
+                          />
+                        </svg>
+                      </button>
+
+                      {chipReactionBarMessageId === bubbleId && !showEmojiPicker && (
+                        <div ref={chipReactionBarRef}>
+                          <ReactionBar
+                            onSelect={(emoji) => {
+                              onReaction(bubbleId, emoji);
+                              setChipReactionBarMessageId(null);
+                            }}
+                            onOpenPicker={() => {
+                              setActiveReactionBubbleId(null);
+                              setShowEmojiPicker(true);
+                            }}
+                          />
+                        </div>
+                      )}
+
+                      {chipReactionBarMessageId === bubbleId && showEmojiPicker && (
+                        <div ref={chipReactionBarRef}>
+                          <EmojiPickerPanel
+                            onSelect={(emoji) => {
+                              onReaction(bubbleId, emoji);
+                              setChipReactionBarMessageId(null);
+                              setShowEmojiPicker(false);
+                            }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+                {bubbleReactions.length === 0 && (
+                  <ReactionPill
+                    reactions={bubbleReactions}
+                    onToggle={(emoji) => onReaction(bubbleId, emoji)}
+                  />
+                )}
               </div>
             );
           })}
+          {msg.replySummary && <ReplySummaryRow replySummary={msg.replySummary} />}
         </div>
       </div>
     );
@@ -908,11 +1105,94 @@ function MessageGroup({
           {msg.bubbles.map((bubble, idx) => {
             const isLastBubble = idx === msg.bubbles.length - 1;
             const bubbleId = `${msg.id}-${idx}`;
+            const bubbleReactions = msg.reactions?.[idx] || [];
             return (
-              <div key={idx} className="message-bubble-row ai-bubble-row">
+              <div key={idx} className="message-bubble-container">
                 <div className="ai-message-text">
                   {parseMentions(bubble)}
                 </div>
+
+                {/* Reaction chips above inline actions */}
+                {bubbleReactions.length > 0 && (
+                  <div className="message-reactions-row">
+                    <ReactionPill
+                      reactions={bubbleReactions}
+                      onToggle={(emoji) => onReaction(bubbleId, emoji)}
+                    />
+
+                    {/* Add reaction chip at the end */}
+                    <div className="reaction-anchor reaction-anchor--chip">
+                      <button
+                        ref={(el) => {
+                          if (el) chipReactButtonRefs.current[bubbleId] = el;
+                        }}
+                        type="button"
+                        className="message-reaction-add-btn"
+                        aria-label="Add reaction"
+                        onClick={() => {
+                          setShowEmojiPicker(false);
+                          setActiveReactionBubbleId(null);
+                          setChipReactionBarMessageId(
+                            chipReactionBarMessageId === bubbleId ? null : bubbleId
+                          );
+                        }}
+                      >
+                        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                          <circle
+                            cx="12"
+                            cy="12"
+                            r="8"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.6"
+                          />
+                          <circle cx="9.5" cy="10" r="0.9" fill="currentColor" />
+                          <circle cx="14.5" cy="10" r="0.9" fill="currentColor" />
+                          <path
+                            d="M9 14c.5 1 1.6 1.6 3 1.6s2.5-.6 3-1.6"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.3"
+                            strokeLinecap="round"
+                          />
+                        </svg>
+                      </button>
+
+                      {chipReactionBarMessageId === bubbleId && !showEmojiPicker && (
+                        <div ref={chipReactionBarRef}>
+                          <ReactionBar
+                            onSelect={(emoji) => {
+                              onReaction(bubbleId, emoji);
+                              setChipReactionBarMessageId(null);
+                            }}
+                            onOpenPicker={() => {
+                              setActiveReactionBubbleId(null);
+                              setShowEmojiPicker(true);
+                            }}
+                          />
+                        </div>
+                      )}
+
+                      {chipReactionBarMessageId === bubbleId && showEmojiPicker && (
+                        <div ref={chipReactionBarRef}>
+                          <EmojiPickerPanel
+                            onSelect={(emoji) => {
+                              onReaction(bubbleId, emoji);
+                              setChipReactionBarMessageId(null);
+                              setShowEmojiPicker(false);
+                            }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+                {bubbleReactions.length === 0 && (
+                  <ReactionPill
+                    reactions={bubbleReactions}
+                    onToggle={(emoji) => onReaction(bubbleId, emoji)}
+                  />
+                )}
 
                 {/* Hover actions for emoji and reply - only on last bubble */}
                 {isLastBubble && (
@@ -971,7 +1251,7 @@ function MessageGroup({
                         </div>
                       )}
 
-                      {activeReactionBubbleId === bubbleId && showEmojiPicker && (
+                      {activeReactionBubbleId === bubbleId && showEmojiPicker && !chipReactionBarMessageId && (
                         <div ref={emojiPickerRef}>
                           <EmojiPickerPanel
                             onSelect={(emoji) => onReaction(bubbleId, emoji)}
@@ -1014,6 +1294,7 @@ function MessageGroup({
               </div>
             );
           })}
+          {msg.replySummary && <ReplySummaryRow replySummary={msg.replySummary} />}
         </div>
       </div>
     );
@@ -1048,31 +1329,29 @@ function MessageGroup({
           const isMenuOpen = openMenuId === bubbleId;
           const bubbleReactions = msg.reactions?.[idx] || [];
           return (
-            <div key={idx} className="message-bubble-row">
-              <div className="message-bubble-wrapper">
-                <div
-                  className={
-                    "msg-bubble " + (msg.isYou ? "you" : "user")
-                  }
-                >
-                  {parseMentions(bubble)}
+            <div key={idx} className="message-bubble-container">
+              <div className="message-bubble-row">
+                <div className="message-bubble-wrapper">
+                  <div
+                    className={
+                      "msg-bubble " + (msg.isYou ? "you" : "user")
+                    }
+                  >
+                    {parseMentions(bubble)}
 
-                  {/* More menu inside bubble */}
-                  <MoreMenu
-                    messageId={bubbleId}
-                    isOwn={msg.isYou || false}
-                    isOpen={isMenuOpen}
-                    onToggle={() => setOpenMenuId(isMenuOpen ? null : bubbleId)}
-                    onClose={() => setOpenMenuId(null)}
-                  />
+                    {/* More menu inside bubble */}
+                    <MoreMenu
+                      messageId={bubbleId}
+                      isOwn={msg.isYou || false}
+                      isOpen={isMenuOpen}
+                      onToggle={() => setOpenMenuId(isMenuOpen ? null : bubbleId)}
+                      onClose={() => setOpenMenuId(null)}
+                    />
+                  </div>
                 </div>
 
-                {/* Reaction pill */}
-                <ReactionPill reactions={bubbleReactions} />
-              </div>
-
-              {/* Hover actions for emoji and reply - only on last bubble and not for "You" */}
-              {isLastBubble && !msg.isYou && (
+                {/* Hover actions for emoji and reply - only on last bubble and not for "You" */}
+                {isLastBubble && !msg.isYou && (
                 <div className="message-inline-actions">
                   <div className="reaction-anchor">
                     <button
@@ -1168,9 +1447,82 @@ function MessageGroup({
                   </button>
                 </div>
               )}
+              </div>
+
+              {/* Reaction chips below bubble row */}
+              {bubbleReactions.length > 0 && (
+                <div className="message-reactions-row">
+                  <ReactionPill
+                    reactions={bubbleReactions}
+                    onToggle={(emoji) => onReaction(bubbleId, emoji)}
+                  />
+
+                  {/* Add reaction chip at the end */}
+                  <div className="reaction-anchor reaction-anchor--chip">
+                    <button
+                      ref={(el) => {
+                        if (el) chipReactButtonRefs.current[bubbleId] = el;
+                      }}
+                      type="button"
+                      className="message-reaction-add-btn"
+                      aria-label="Add reaction"
+                      onClick={() => {
+                        setShowEmojiPicker(false);
+                        setActiveReactionBubbleId(null);
+                        setChipReactionBarMessageId(
+                          chipReactionBarMessageId === bubbleId ? null : bubbleId
+                        );
+                      }}
+                    >
+                      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                        <circle
+                          cx="12"
+                          cy="12"
+                          r="8"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.6"
+                        />
+                        <circle cx="9.5" cy="10" r="0.9" fill="currentColor" />
+                        <circle cx="14.5" cy="10" r="0.9" fill="currentColor" />
+                        <path
+                          d="M9 14c.5 1 1.6 1.6 3 1.6s2.5-.6 3-1.6"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.3"
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                    </button>
+
+                    {chipReactionBarMessageId === bubbleId && !showEmojiPicker && (
+                      <div ref={chipReactionBarRef}>
+                        <ReactionBar
+                          onSelect={(emoji) => {
+                            onReaction(bubbleId, emoji);
+                            setChipReactionBarMessageId(null);
+                          }}
+                          onOpenPicker={() => {
+                            setChipReactionBarMessageId(null);
+                            setActiveReactionBubbleId(bubbleId);
+                            setShowEmojiPicker(true);
+                          }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+              {bubbleReactions.length === 0 && (
+                <ReactionPill
+                  reactions={bubbleReactions}
+                  onToggle={(emoji) => onReaction(bubbleId, emoji)}
+                />
+              )}
             </div>
           );
         })}
+        {msg.replySummary && <ReplySummaryRow replySummary={msg.replySummary} />}
       </div>
     </div>
   );
