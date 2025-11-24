@@ -608,32 +608,7 @@ function ChatWindow({ channel, threadId = null }) {
       {/* Composer */}
       <section className="composer-wrapper">
         <div className="composer-inner">
-          {/* Attachments row */}
-          {attachments.length > 0 && (
-            <div className="composer-attachments-row">
-              {attachments.map((att) => (
-                <AttachmentTile
-                  key={att.id}
-                  attachment={att}
-                  onRemove={() =>
-                    setAttachments((prev) =>
-                      prev.filter((a) => a.id !== att.id)
-                    )
-                  }
-                />
-              ))}
-            </div>
-          )}
-
           <div className="composer-textarea-wrapper" ref={composerRef}>
-            <button
-              ref={addButtonRef}
-              className={"add-button" + (isAttachMenuOpen ? " active" : "") + (isFormattingOn ? " formatting-active" : "")}
-              onClick={toggleAttachMenu}
-            >
-              <span className="add-button-icon">+</span>
-            </button>
-
             <ActionMenu
               items={[
                 {
@@ -701,38 +676,65 @@ function ChatWindow({ channel, threadId = null }) {
             />
 
             <div className="composer-field">
-              <textarea
-                ref={textareaRef}
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                placeholder={`Message #${channel.label}`}
-                rows={1}
-              />
+              {/* Attachments row - inside white card */}
+              {attachments.length > 0 && (
+                <div className="composer-attachments-row">
+                  {attachments.map((att) => (
+                    <AttachmentTile
+                      key={att.id}
+                      attachment={att}
+                      onRemove={() =>
+                        setAttachments((prev) =>
+                          prev.filter((a) => a.id !== att.id)
+                        )
+                      }
+                    />
+                  ))}
+                </div>
+              )}
+
+              <div className="composer-input-area">
+                <button
+                  ref={addButtonRef}
+                  className={"add-button" + (isAttachMenuOpen ? " active" : "") + (isFormattingOn ? " formatting-active" : "")}
+                  onClick={toggleAttachMenu}
+                >
+                  <span className="add-button-icon">+</span>
+                </button>
+
+                <textarea
+                  ref={textareaRef}
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  placeholder={`Message #${channel.label}`}
+                  rows={1}
+                />
+
+                <button
+                  className="send-button"
+                  disabled={!draft.trim() && attachments.length === 0}
+                  onClick={handleSend}
+                >
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 20 20"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M10 16V4M10 4L4 10M10 4L16 10"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </button>
+              </div>
 
               {isFormattingOn && <FormattingToolbar />}
             </div>
-
-            <button
-              className="send-button"
-              disabled={!draft.trim() && attachments.length === 0}
-              onClick={handleSend}
-            >
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 20 20"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M10 16V4M10 4L4 10M10 4L16 10"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </button>
           </div>
 
           {/* Hidden file input */}

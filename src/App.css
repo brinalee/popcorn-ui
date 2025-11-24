@@ -1302,18 +1302,18 @@
   max-width: 1000px;
   min-width: 1000px;
   display: flex;
-  flex-direction: column;
   gap: 8px;
-  align-items: stretch;
+  align-items: flex-end;
 }
 
-/* Attachments row - horizontal strip of tiles */
+/* Attachments row - horizontal strip of tiles inside white card */
 .composer-attachments-row {
   display: flex;
   flex-wrap: nowrap;
   gap: 8px;
   overflow-x: auto;
-  padding-bottom: 2px;
+  padding: 12px 12px 8px 12px;
+  margin: 0;
 }
 
 /* Individual attachment tile */
@@ -1404,11 +1404,20 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
   overflow: hidden;
+  gap: 0;
+  position: relative;
 }
 
 .composer-field:focus-within {
   border: 2px solid var(--selection-blue);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+/* Input area wrapper - keeps textarea and buttons together */
+.composer-input-area {
+  position: relative;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Textarea inside composer field */
@@ -1433,10 +1442,10 @@
   color: var(--text-tertiary);
 }
 
-/* Send button - anchored to top */
+/* Send button - anchored to top of input area */
 .send-button {
   position: absolute;
-  top: 15px;
+  top: 12px;
   right: 12px;
   width: 38px;
   height: 38px;
@@ -1454,6 +1463,7 @@
   align-items: center;
   justify-content: center;
   line-height: 1;
+  z-index: 1;
 }
 
 .send-button:hover {
@@ -1470,10 +1480,10 @@
   cursor: not-allowed;
 }
 
-/* Add button - anchored to top */
+/* Add button - anchored to top of input area */
 .add-button {
   position: absolute;
-  top: 15px;
+  top: 12px;
   left: 12px;
   width: 38px;
   height: 38px;
@@ -1490,6 +1500,7 @@
   align-items: center;
   justify-content: center;
   line-height: 1;
+  z-index: 1;
 }
 
 .add-button:hover {
