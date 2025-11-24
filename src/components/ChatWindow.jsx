@@ -7,12 +7,88 @@ import ReactionPill from "./ReactionPill";
 import ReplySummaryRow from "./ReplySummaryRow";
 import { threads } from "../mockData";
 
+// Attachment type definition
+// type Attachment = {
+//   id: string;
+//   file: File;
+//   name: string;
+//   type: string;
+//   size: number;
+//   previewUrl?: string;
+// };
+
+// Helper function to format timestamp with date
+function formatTimestamp(timestamp) {
+  if (!timestamp) return '';
+
+  const date = new Date(timestamp);
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const month = months[date.getMonth()];
+  const day = date.getDate();
+  const hours = date.getHours() % 12 || 12;
+  const minutes = date.getMinutes().toString().padStart(2, '0');
+  const ampm = date.getHours() >= 12 ? 'pm' : 'am';
+
+  return `${month} ${day}, ${hours}:${minutes}${ampm}`;
+}
+
+// AttachmentTile component
+function AttachmentTile({ attachment, onRemove }) {
+  const isImage = attachment.previewUrl && attachment.type.startsWith("image/");
+
+  return (
+    <div className="attachment-tile">
+      <div className="attachment-thumb-wrapper">
+        {isImage ? (
+          <img
+            src={attachment.previewUrl}
+            alt={attachment.name}
+            className="attachment-thumb"
+          />
+        ) : (
+          <div className="attachment-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+              <path d="M7 3h7l5 5v13H7z" stroke="#6b7280" strokeWidth="1.7" strokeLinejoin="round" />
+              <path d="M14 3v5h5" stroke="#6b7280" strokeWidth="1.7" strokeLinejoin="round" />
+            </svg>
+          </div>
+        )}
+        <button
+          type="button"
+          className="attachment-remove-btn"
+          aria-label="Remove attachment"
+          onClick={onRemove}
+        >
+          ×
+        </button>
+      </div>
+      <div className="attachment-name" title={attachment.name}>
+        {attachment.name}
+      </div>
+    </div>
+  );
+}
+
 function ChatWindow({ channel, threadId = null }) {
   const navigate = useNavigate();
   const { channelId } = useParams();
 
   // Determine if we're in thread mode and get the appropriate messages
-  const thread = threadId ? threads.find(t => t.id === threadId) : null;
+  let thread = threadId ? threads.find(t => t.id === threadId) : null;
+
+  // If thread doesn't exist but we have a threadId, create an empty thread dynamically
+  // This handles the case where Reply was clicked on a message without an existing thread
+  if (threadId && !thread) {
+    // Extract rootMessageId from threadId (format: "thread-{messageId}")
+    const rootMessageId = threadId.replace('thread-', '');
+    thread = {
+      id: threadId,
+      channelId: channelId,
+      rootMessageId: rootMessageId,
+      messages: [] // Empty replies for now
+    };
+  }
+
   const rootMessage = thread ? channel.messages.find(m => m.id === thread.rootMessageId) : null;
   const displayMessages = thread
     ? (rootMessage ? [rootMessage, ...thread.messages] : thread.messages)
@@ -29,6 +105,7 @@ function ChatWindow({ channel, threadId = null }) {
   const [activeReactionBubbleId, setActiveReactionBubbleId] = useState(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [chipReactionBarMessageId, setChipReactionBarMessageId] = useState(null);
+  const [attachments, setAttachments] = useState([]);
   const textareaRef = useRef(null);
   const reactionBarRef = useRef(null);
   const emojiPickerRef = useRef(null);
@@ -39,6 +116,7 @@ function ChatWindow({ channel, threadId = null }) {
   const attachMenuRef = useRef(null);
   const addButtonRef = useRef(null);
   const composerRef = useRef(null);
+  const fileInputRef = useRef(null);
   const isProgrammaticScrollRef = useRef(false);
   const lastUserScrollTimeRef = useRef(0);
 
@@ -191,13 +269,10 @@ function ChatWindow({ channel, threadId = null }) {
 
   const handleSend = () => {
     const trimmed = draft.trim();
-    if (!trimmed) return;
+    // Allow sending if there's text OR attachments
+    if (!trimmed && attachments.length === 0) return;
 
     const now = new Date();
-    const hours = now.getHours() % 12 || 12;
-    const minutes = now.getMinutes().toString().padStart(2, '0');
-    const ampm = now.getHours() >= 12 ? 'pm' : 'am';
-    const timestamp = `${hours}:${minutes}${ampm}`;
 
     const newMessage = {
       id: `${channel.id}-local-${Date.now()}`,
@@ -207,12 +282,28 @@ function ChatWindow({ channel, threadId = null }) {
       avatarColor: "gray",
       avatarUrl: "https://i.pravatar.cc/150?img=68",
       isYou: true,
-      time: timestamp,
-      bubbles: [trimmed]
+      timestamp: now.toISOString(),
+      bubbles: trimmed ? [trimmed] : [],
+      attachments: attachments.map(att => ({
+        id: att.id,
+        name: att.name,
+        type: att.type,
+        size: att.size,
+        previewUrl: att.previewUrl
+      }))
     };
 
     setLocalMessages((prev) => [...prev, newMessage]);
     setDraft("");
+
+    // Clean up preview URLs
+    attachments.forEach((att) => {
+      if (att.previewUrl) {
+        URL.revokeObjectURL(att.previewUrl);
+      }
+    });
+    setAttachments([]);
+
     // Reset scroll time so auto-scroll works for user's own message
     lastUserScrollTimeRef.current = 0;
     setUserHasScrolled(false);
@@ -227,10 +318,47 @@ function ChatWindow({ channel, threadId = null }) {
     setIsAttachMenuOpen(false);
   };
 
+  // File selection handler
+  const handleFileSelect = (e) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+
+    setAttachments((prev) => [
+      ...prev,
+      ...files.map((file) => ({
+        id: `${file.name}-${file.size}-${file.lastModified}-${Date.now()}-${Math.random()}`,
+        file,
+        name: file.name,
+        type: file.type,
+        size: file.size,
+        previewUrl: file.type.startsWith("image/")
+          ? URL.createObjectURL(file)
+          : undefined,
+      })),
+    ]);
+
+    // Reset input so same file can be picked again
+    e.target.value = "";
+  };
+
+  // Open file picker function
+  const openFilePicker = (accept) => {
+    if (!fileInputRef.current) return;
+    fileInputRef.current.accept = accept || "";
+    fileInputRef.current.click();
+  };
+
   const handleAttachOption = (option) => {
-    console.log('Attachment option selected:', option);
     setIsAttachMenuOpen(false);
-    // TODO: Implement attachment functionality
+
+    if (option === 'file') {
+      openFilePicker(); // Any file
+    } else if (option === 'photos') {
+      openFilePicker('image/*'); // Images only
+    } else {
+      console.log('Attachment option selected:', option);
+      // Keep other options (GIF, Emoji) as they are
+    }
   };
 
   const handleReaction = (bubbleId, emoji) => {
@@ -278,6 +406,21 @@ function ChatWindow({ channel, threadId = null }) {
     // Close reaction UI
     setActiveReactionBubbleId(null);
     setShowEmojiPicker(false);
+  };
+
+  const handleReplyClick = (messageId) => {
+    // Find the message to check if it has an existing thread
+    const message = localMessages.find(m => m.id === messageId);
+
+    if (message?.replySummary?.threadId) {
+      // Navigate to existing thread
+      navigate(`/channel/${channelId}/thread/${message.replySummary.threadId}`);
+    } else {
+      // Create new thread - in a real app, this would create thread via API
+      // For now, navigate to a new thread ID and let the system handle it
+      const newThreadId = `thread-${messageId}`;
+      navigate(`/channel/${channelId}/thread/${newThreadId}`);
+    }
   };
 
   // Handle click outside and Escape key for reaction menus
@@ -398,26 +541,65 @@ function ChatWindow({ channel, threadId = null }) {
             const isContinuation = prevMsg &&
               prevMsg.author === msg.author &&
               prevMsg.senderType === msg.senderType;
+            const isThreadRoot = threadId && index === 0;
+            const replyCount = thread?.messages?.length || 0;
+
             return (
-              <MessageGroup
-                key={msg.id}
-                msg={msg}
-                isContinuation={isContinuation}
-                openMenuId={openMenuId}
-                setOpenMenuId={setOpenMenuId}
-                activeReactionBubbleId={activeReactionBubbleId}
-                setActiveReactionBubbleId={setActiveReactionBubbleId}
-                showEmojiPicker={showEmojiPicker}
-                setShowEmojiPicker={setShowEmojiPicker}
-                onReaction={handleReaction}
-                reactButtonRefs={reactButtonRefs}
-                reactionBarRef={reactionBarRef}
-                emojiPickerRef={emojiPickerRef}
-                chipReactionBarMessageId={chipReactionBarMessageId}
-                setChipReactionBarMessageId={setChipReactionBarMessageId}
-                chipReactButtonRefs={chipReactButtonRefs}
-                chipReactionBarRef={chipReactionBarRef}
-              />
+              <React.Fragment key={msg.id}>
+                {isThreadRoot && (
+                  <div className="thread-root-container">
+                    <MessageGroup
+                      msg={msg}
+                      isContinuation={isContinuation}
+                      openMenuId={openMenuId}
+                      setOpenMenuId={setOpenMenuId}
+                      activeReactionBubbleId={activeReactionBubbleId}
+                      setActiveReactionBubbleId={setActiveReactionBubbleId}
+                      showEmojiPicker={showEmojiPicker}
+                      setShowEmojiPicker={setShowEmojiPicker}
+                      onReaction={handleReaction}
+                      onReplyClick={handleReplyClick}
+                      reactButtonRefs={reactButtonRefs}
+                      reactionBarRef={reactionBarRef}
+                      emojiPickerRef={emojiPickerRef}
+                      chipReactionBarMessageId={chipReactionBarMessageId}
+                      setChipReactionBarMessageId={setChipReactionBarMessageId}
+                      chipReactButtonRefs={chipReactButtonRefs}
+                      chipReactionBarRef={chipReactionBarRef}
+                      isThreadRoot={isThreadRoot}
+                      hideReplySummary={!!threadId}
+                    />
+                    <div className="thread-divider">
+                      <div className="thread-divider-text">
+                        {replyCount === 0 ? 'No replies yet' : replyCount === 1 ? '1 reply' : `${replyCount} replies`}
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {!isThreadRoot && (
+                  <MessageGroup
+                    msg={msg}
+                    isContinuation={isContinuation}
+                    openMenuId={openMenuId}
+                    setOpenMenuId={setOpenMenuId}
+                    activeReactionBubbleId={activeReactionBubbleId}
+                    setActiveReactionBubbleId={setActiveReactionBubbleId}
+                    showEmojiPicker={showEmojiPicker}
+                    setShowEmojiPicker={setShowEmojiPicker}
+                    onReaction={handleReaction}
+                    onReplyClick={handleReplyClick}
+                    reactButtonRefs={reactButtonRefs}
+                    reactionBarRef={reactionBarRef}
+                    emojiPickerRef={emojiPickerRef}
+                    chipReactionBarMessageId={chipReactionBarMessageId}
+                    setChipReactionBarMessageId={setChipReactionBarMessageId}
+                    chipReactButtonRefs={chipReactButtonRefs}
+                    chipReactionBarRef={chipReactionBarRef}
+                    isThreadRoot={isThreadRoot}
+                    hideReplySummary={!!threadId}
+                  />
+                )}
+              </React.Fragment>
             );
           })}
         </div>
@@ -426,6 +608,23 @@ function ChatWindow({ channel, threadId = null }) {
       {/* Composer */}
       <section className="composer-wrapper">
         <div className="composer-inner">
+          {/* Attachments row */}
+          {attachments.length > 0 && (
+            <div className="composer-attachments-row">
+              {attachments.map((att) => (
+                <AttachmentTile
+                  key={att.id}
+                  attachment={att}
+                  onRemove={() =>
+                    setAttachments((prev) =>
+                      prev.filter((a) => a.id !== att.id)
+                    )
+                  }
+                />
+              ))}
+            </div>
+          )}
+
           <div className="composer-textarea-wrapper" ref={composerRef}>
             <button
               ref={addButtonRef}
@@ -459,19 +658,6 @@ function ChatWindow({ channel, threadId = null }) {
                     </svg>
                   ),
                   onClick: () => handleAttachOption('photos')
-                },
-                {
-                  key: 'camera',
-                  label: 'Camera',
-                  icon: (
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                      <rect x="3.5" y="7" width="17" height="12" rx="3" ry="3" stroke="#0EA5E9" strokeWidth="1.7" />
-                      <path d="M9 7l1-2h4l1 2" stroke="#0EA5E9" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
-                      <circle cx="12" cy="13" r="3.2" stroke="#0EA5E9" strokeWidth="1.7" />
-                      <circle cx="12" cy="13" r="1.2" fill="#0EA5E9" />
-                    </svg>
-                  ),
-                  onClick: () => handleAttachOption('camera')
                 },
                 {
                   key: 'gif',
@@ -528,7 +714,7 @@ function ChatWindow({ channel, threadId = null }) {
 
             <button
               className="send-button"
-              disabled={!draft.trim()}
+              disabled={!draft.trim() && attachments.length === 0}
               onClick={handleSend}
             >
               <svg
@@ -548,6 +734,15 @@ function ChatWindow({ channel, threadId = null }) {
               </svg>
             </button>
           </div>
+
+          {/* Hidden file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            style={{ display: 'none' }}
+            onChange={handleFileSelect}
+          />
         </div>
       </section>
 
@@ -771,6 +966,48 @@ function MoreMenu({ messageId, isOwn, isOpen, onToggle, onClose }) {
     </svg>
   );
 
+  const linkIcon = (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"
+        fill="none"
+        stroke="#3b82f6"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"
+        fill="none"
+        stroke="#3b82f6"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+
+  const editIcon = (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"
+        fill="none"
+        stroke="#8b5cf6"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"
+        fill="none"
+        stroke="#8b5cf6"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+
   // Handle action click
   const handleAction = (actionKey) => {
     console.log(`Action: ${actionKey} on message: ${messageId}`);
@@ -780,17 +1017,18 @@ function MoreMenu({ messageId, isOwn, isOpen, onToggle, onClose }) {
   // Menu items based on ownership with onClick handlers
   const menuItems = isOwn
     ? [
-        { key: "reply", label: "Reply", icon: replyIcon, onClick: () => handleAction("reply") },
-        { key: "popcorn2", label: "Popcorn2", icon: popcorn2Icon, onClick: () => handleAction("popcorn2") },
-        { key: "copy", label: "Copy", icon: copyIcon, onClick: () => handleAction("copy") },
+        { key: "edit", label: "Edit", icon: editIcon, onClick: () => handleAction("edit") },
+        { key: "copy", label: "Copy text", icon: copyIcon, onClick: () => handleAction("copy") },
+        { key: "copy-link", label: "Copy link", icon: linkIcon, onClick: () => handleAction("copy-link") },
+        { key: "popcorn2", label: "Popcorn to...", icon: popcorn2Icon, onClick: () => handleAction("popcorn2") },
         { key: "delete", label: "Delete", icon: deleteIcon, onClick: () => handleAction("delete") },
       ]
     : [
         { key: "reply", label: "Reply", icon: replyIcon, onClick: () => handleAction("reply") },
-        { key: "reply-private", label: "Private", icon: replyPrivateIcon, onClick: () => handleAction("reply-private") },
-        { key: "popcorn2", label: "Popcorn2", icon: popcorn2Icon, onClick: () => handleAction("popcorn2") },
-        { key: "copy", label: "Copy", icon: copyIcon, onClick: () => handleAction("copy") },
-        { key: "delete", label: "Delete", icon: deleteIcon, onClick: () => handleAction("delete") },
+        { key: "reply-private", label: "Reply privately", icon: replyPrivateIcon, onClick: () => handleAction("reply-private") },
+        { key: "copy", label: "Copy text", icon: copyIcon, onClick: () => handleAction("copy") },
+        { key: "copy-link", label: "Copy link", icon: linkIcon, onClick: () => handleAction("copy-link") },
+        { key: "popcorn2", label: "Popcorn to...", icon: popcorn2Icon, onClick: () => handleAction("popcorn2") },
       ];
 
   return (
@@ -839,13 +1077,16 @@ function MessageGroup({
   showEmojiPicker,
   setShowEmojiPicker,
   onReaction,
+  onReplyClick,
   reactButtonRefs,
   reactionBarRef,
   emojiPickerRef,
   chipReactionBarMessageId,
   setChipReactionBarMessageId,
   chipReactButtonRefs,
-  chipReactionBarRef
+  chipReactionBarRef,
+  isThreadRoot = false,
+  hideReplySummary = false
 }) {
   const isAI = msg.senderType === "ai";
   const isAgent = msg.senderType === "agent";
@@ -870,7 +1111,11 @@ function MessageGroup({
           {!isContinuation && (
             <div className="msg-meta">
               <span className="msg-name">{msg.author || "Agent"}</span>
-              {msg.time && <span className="msg-time">{msg.time}</span>}
+              {(msg.timestamp || msg.time) && (
+                <span className="msg-time">
+                  {msg.timestamp ? formatTimestamp(msg.timestamp) : msg.time}
+                </span>
+              )}
             </div>
           )}
 
@@ -968,6 +1213,7 @@ function MessageGroup({
                       type="button"
                       className="message-inline-action-btn"
                       aria-label="Reply"
+                      onClick={() => onReplyClick(msg.id)}
                     >
                       <svg
                         viewBox="0 0 24 24"
@@ -1041,6 +1287,7 @@ function MessageGroup({
                             strokeLinecap="round"
                           />
                         </svg>
+                        <span className="message-tooltip">Add reaction</span>
                       </button>
 
                       {chipReactionBarMessageId === bubbleId && !showEmojiPicker && (
@@ -1081,7 +1328,7 @@ function MessageGroup({
               </div>
             );
           })}
-          {msg.replySummary && <ReplySummaryRow replySummary={msg.replySummary} />}
+          {msg.replySummary && !hideReplySummary && <ReplySummaryRow replySummary={msg.replySummary} />}
         </div>
       </div>
     );
@@ -1098,7 +1345,12 @@ function MessageGroup({
         <div className="msg-content">
           {!isContinuation && (
             <div className="msg-meta">
-              {msg.time && <span className="msg-time">{msg.time}</span>}
+              <span className="msg-name">@popcorn</span>
+              {(msg.timestamp || msg.time) && (
+                <span className="msg-time">
+                  {msg.timestamp ? formatTimestamp(msg.timestamp) : msg.time}
+                </span>
+              )}
             </div>
           )}
 
@@ -1156,6 +1408,7 @@ function MessageGroup({
                             strokeLinecap="round"
                           />
                         </svg>
+                        <span className="message-tooltip">Add reaction</span>
                       </button>
 
                       {chipReactionBarMessageId === bubbleId && !showEmojiPicker && (
@@ -1264,6 +1517,7 @@ function MessageGroup({
                       type="button"
                       className="message-inline-action-btn"
                       aria-label="Reply"
+                      onClick={() => onReplyClick(msg.id)}
                     >
                       <svg
                         viewBox="0 0 24 24"
@@ -1294,7 +1548,7 @@ function MessageGroup({
               </div>
             );
           })}
-          {msg.replySummary && <ReplySummaryRow replySummary={msg.replySummary} />}
+          {msg.replySummary && !hideReplySummary && <ReplySummaryRow replySummary={msg.replySummary} />}
         </div>
       </div>
     );
@@ -1319,7 +1573,11 @@ function MessageGroup({
         {!isContinuation && (
           <div className="msg-meta">
             <span className="msg-name">{msg.author || "User"}</span>
-            {msg.time && <span className="msg-time">{msg.time}</span>}
+            {(msg.timestamp || msg.time) && (
+              <span className="msg-time">
+                {msg.timestamp ? formatTimestamp(msg.timestamp) : msg.time}
+              </span>
+            )}
           </div>
         )}
 
@@ -1420,6 +1678,43 @@ function MessageGroup({
                     type="button"
                     className="message-inline-action-btn"
                     aria-label="Reply"
+                    onClick={() => onReplyClick(msg.id)}
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      width="24"
+                      height="24"
+                      aria-hidden="true"
+                    >
+                      <path
+                        d="M8 12L4 16L8 20"
+                        fill="none"
+                        stroke="#9ca3af"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                      <path
+                        d="M4 16H14C16.7614 16 19 13.7614 19 11C19 8.23858 16.7614 6 14 6H13"
+                        fill="none"
+                        stroke="#9ca3af"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                    <span className="message-tooltip">Reply</span>
+                  </button>
+                </div>
+              )}
+
+              {/* Reply button for "You" messages */}
+              {isLastBubble && msg.isYou && (
+                <div className="message-inline-actions">
+                  <button
+                    type="button"
+                    className="message-inline-action-btn"
+                    aria-label="Reply"
+                    onClick={() => onReplyClick(msg.id)}
                   >
                     <svg
                       viewBox="0 0 24 24"
@@ -1522,7 +1817,7 @@ function MessageGroup({
             </div>
           );
         })}
-        {msg.replySummary && <ReplySummaryRow replySummary={msg.replySummary} />}
+        {msg.replySummary && !hideReplySummary && <ReplySummaryRow replySummary={msg.replySummary} />}
       </div>
     </div>
   );

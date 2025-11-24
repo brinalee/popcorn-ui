@@ -14,7 +14,7 @@ export const channels = [
         initials: "B",
         avatarColor: "gray",
         avatarUrl: "https://i.pravatar.cc/150?img=1",
-        time: "09:41",
+        timestamp: "2024-12-14T09:41:00Z",
         bubbles: [
           "Anyone seeing elevated 500s on api-gateway? Pager just went off."
         ]
@@ -26,7 +26,7 @@ export const channels = [
         initials: "T",
         avatarColor: "gray",
         avatarUrl: "https://i.pravatar.cc/150?img=12",
-        time: "09:42",
+        timestamp: "2024-12-14T09:42:00Z",
         bubbles: [
           "Yep, prod-us-west-2 is flapping. Dashboards show a spike starting right after deploy #428."
         ]
@@ -38,7 +38,7 @@ export const channels = [
         initials: "A",
         avatarColor: "gray",
         avatarUrl: "https://i.pravatar.cc/150?img=5",
-        time: "09:43",
+        timestamp: "2024-12-14T09:43:00Z",
         bubbles: [
           "Looking at the logs, most errors are on /billing/charge. Could be the currency refactor?"
         ]
@@ -50,7 +50,7 @@ export const channels = [
         initials: "A",
         avatarColor: "green",
         agentLabel: "XML AGENT",
-        time: "09:44",
+        timestamp: "2024-12-14T09:44:00Z",
         bubbles: [
           "I'm seeing error spikes in deploy #428 around the /billing route. It correlates with this PR in GitHub: https://github.com/kewl/infra-incidents/pull/128"
         ]
@@ -62,7 +62,7 @@ export const channels = [
         initials: "D",
         avatarColor: "gray",
         avatarUrl: "https://i.pravatar.cc/150?img=33",
-        time: "09:45",
+        timestamp: "2024-12-14T09:45:00Z",
         bubbles: [
           "PR 128 changed the retry logic on Stripe timeouts. Maybe we're retrying in a way that double-charges?"
         ]
@@ -74,7 +74,7 @@ export const channels = [
         initials: "T",
         avatarColor: "gray",
         avatarUrl: "https://i.pravatar.cc/150?img=12",
-        time: "09:46",
+        timestamp: "2024-12-14T09:46:00Z",
         bubbles: [
           "Linking another one: https://github.com/kewl/infra-incidents/pull/131 – added a new feature flag `BILLING_STRICT_MODE`."
         ]
@@ -86,7 +86,7 @@ export const channels = [
         initials: "A",
         avatarColor: "green",
         agentLabel: "XML AGENT",
-        time: "09:47",
+        timestamp: "2024-12-14T09:47:00Z",
         bubbles: [
           "Comparing PR 128 and PR 131: PR 131 enables BILLING_STRICT_MODE by default in production. That flag is only tested in staging. Suggest: roll back PR 131 or flip the flag off."
         ]
@@ -98,7 +98,7 @@ export const channels = [
         initials: "A",
         avatarColor: "gray",
         avatarUrl: "https://i.pravatar.cc/150?img=5",
-        time: "09:48",
+        timestamp: "2024-12-14T09:48:00Z",
         bubbles: [
           "Agree. I'll toggle BILLING_STRICT_MODE off in prod and watch 500s."
         ]
@@ -110,7 +110,7 @@ export const channels = [
         initials: "B",
         avatarColor: "gray",
         avatarUrl: "https://i.pravatar.cc/150?img=1",
-        time: "09:49",
+        timestamp: "2024-12-14T09:49:00Z",
         bubbles: [
           "On it. Also let's capture a quick timeline in the incident doc; dropping link: https://github.com/kewl/runbooks/blob/main/incidents/2025-11-billing-sev.md"
         ]
@@ -122,7 +122,7 @@ export const channels = [
         initials: "A",
         avatarColor: "green",
         agentLabel: "XML AGENT",
-        time: "09:50",
+        timestamp: "2024-12-14T09:50:00Z",
         bubbles: [
           "I'll append the current hypothesis and mitigation to the incident doc and pin this thread to #sev-incidents for later review."
         ]
@@ -202,7 +202,7 @@ export const channels = [
         avatarColor: "gray",
         avatarUrl: "https://i.pravatar.cc/150?img=68",
         isYou: true,
-        time: "12:29pm",
+        timestamp: "2024-11-20T12:29:00Z",
         bubbles: ["@shaun @oguz seems like conversations are broken"],
         replySummary: {
           threadId: "thread-bug-1",
@@ -218,7 +218,7 @@ export const channels = [
       {
         id: "bug-2",
         senderType: "ai",
-        time: "12:29pm",
+        timestamp: "2024-11-20T12:29:00Z",
         bubbles: ["was added to #all-eng by ben."]
       },
       {
@@ -229,7 +229,7 @@ export const channels = [
         avatarColor: "gray",
         avatarUrl: "https://i.pravatar.cc/150?img=68",
         isYou: true,
-        time: "12:30pm",
+        timestamp: "2024-11-20T12:30:00Z",
         bubbles: ["Maybe my fault?"]
       },
       {
@@ -239,7 +239,7 @@ export const channels = [
         initials: "O",
         avatarColor: "gray",
         avatarUrl: "https://i.pravatar.cc/150?img=14",
-        time: "12:30pm",
+        timestamp: "2024-11-20T12:30:00Z",
         bubbles: [
           "ah maybe I didn't communicate that merging a PR auto deploys",
           "so Shaun hasn't run the migration yet probably",
@@ -264,7 +264,7 @@ export const channels = [
         avatarColor: "gray",
         avatarUrl: "https://i.pravatar.cc/150?img=68",
         isYou: true,
-        time: "12:33pm",
+        timestamp: "2024-11-20T12:33:00Z",
         bubbles: ["Ah I see"]
       },
       {
@@ -275,7 +275,7 @@ export const channels = [
         avatarColor: "gray",
         avatarUrl: "https://i.pravatar.cc/150?img=68",
         isYou: true,
-        time: "12:41pm",
+        timestamp: "2024-11-20T12:41:00Z",
         bubbles: ["oguz migrated service back!"]
       },
       {
@@ -285,7 +285,7 @@ export const channels = [
         initials: "O",
         avatarColor: "gray",
         avatarUrl: "https://i.pravatar.cc/150?img=14",
-        time: "12:41pm",
+        timestamp: "2024-11-20T12:41:00Z",
         bubbles: ["yeah it is just one command anyways 😁"]
       },
       {
