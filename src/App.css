@@ -584,6 +584,7 @@
 
 /* Clean message layout */
 .message-group {
+  position: relative;
   margin-bottom: 12px;
   display: flex;
   gap: 10px;
@@ -592,7 +593,7 @@
 .message-group.ai {
   margin-left: 0;
   margin-top: 20px;
-  margin-bottom: 20px;
+  margin-bottom: 4px;
 }
 
 .message-group.ai .msg-avatar-column {
@@ -612,6 +613,7 @@
 }
 
 .msg-content {
+  position: relative;
   flex: 1;
   min-width: 0;
 }
@@ -637,8 +639,10 @@
 
 /* Rounded message bubbles with flat gray */
 .msg-bubble {
+  position: relative;
   display: block;
   padding: 10px 16px;
+  padding-right: 36px;
   border-radius: 12px;
   background: #F0F0F0;
   font-size: 17px;
@@ -670,7 +674,7 @@
   font-size: 17px;
   line-height: 1.5;
   color: var(--text-primary);
-  margin-bottom: 4px;
+  margin-bottom: 0;
 }
 
 /* @mention styling */
@@ -704,6 +708,473 @@
 }
 
 /* ================================
+   MESSAGE HOVER ACTIONS
+   ================================ */
+
+/* Bubble row: wraps bubble + inline actions */
+.message-bubble-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* AI message bubble rows: display actions below text */
+.message-bubble-row.ai-bubble-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  margin-bottom: 0;
+}
+
+/* Inline actions container - sits next to bubble */
+.message-inline-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(1px);
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease;
+}
+
+/* Show actions when hovering message-group or focusing button */
+.message-group:hover .message-inline-actions,
+.message-inline-actions:has(.message-inline-action-btn:focus-visible) {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+/* Individual icon button - transparent by default */
+.message-inline-action-btn {
+  position: relative;
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  color: #9ca3af;
+  transition:
+    color 110ms ease,
+    background-color 110ms ease,
+    transform 80ms ease;
+}
+
+/* SVG icon sizing */
+.message-inline-action-btn svg {
+  width: 24px;
+  height: 24px;
+  display: block;
+}
+
+/* Hover/focus: subtle pill background */
+.message-inline-action-btn:hover,
+.message-inline-action-btn:focus-visible {
+  color: #4b5563;
+  background-color: rgba(148, 163, 184, 0.08);
+  border-radius: 12px;
+  transform: translateY(-1px);
+}
+
+/* Tooltip */
+.message-tooltip {
+  position: absolute;
+  left: 50%;
+  bottom: 120%;
+  transform: translate(-50%, 4px);
+  padding: 6px 10px;
+  border-radius: 8px;
+  background-color: rgba(17, 24, 39, 0.96);
+  color: #f9fafb;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.5);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease;
+  z-index: 10;
+}
+
+/* Tooltip pointer/arrow */
+.message-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 5px solid rgba(17, 24, 39, 0.96);
+}
+
+.message-inline-action-btn:hover .message-tooltip,
+.message-inline-action-btn:focus-visible .message-tooltip {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+/* ================================
+   MESSAGE MORE MENU (CHEVRON)
+   ================================ */
+
+/* More button (chevron) inside bubble */
+.message-more-btn {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #9ca3af;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 120ms ease,
+    color 120ms ease,
+    transform 100ms ease;
+  z-index: 5;
+}
+
+/* Soft white halo behind chevron */
+.message-more-btn::before {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.25);
+  opacity: 0.9;
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* Larger chevron icon */
+.message-more-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* Show chevron on bubble hover OR when menu is open */
+.msg-bubble:hover .message-more-btn,
+.message-more-btn--visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.message-more-btn:hover,
+.message-more-btn:focus-visible {
+  color: #6b7280;
+  transform: translateY(-50%) translateY(-1px);
+}
+
+/* Dropdown menu */
+.message-more-menu {
+  position: absolute;
+  top: 32px;
+  right: 4px;
+  min-width: 160px;
+  border-radius: 8px;
+  background-color: #ffffff;
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.28);
+  border: 1px solid #e5e7eb;
+  padding: 4px 0;
+  z-index: 30;
+  opacity: 0;
+  transform: translateY(4px);
+  animation: message-more-menu-in 120ms ease-out forwards;
+}
+
+@keyframes message-more-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Menu items */
+.message-more-menu-item {
+  width: 100%;
+  padding: 8px 12px;
+  text-align: left;
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  color: #111827;
+  cursor: pointer;
+  transition: background-color 110ms ease;
+  font-family: inherit;
+}
+
+.message-more-menu-item:hover,
+.message-more-menu-item:focus-visible {
+  background-color: #f3f4f6;
+  outline: none;
+}
+
+.message-more-menu-item:active {
+  background-color: #e5e7eb;
+}
+
+/* ================================
+   REACTION BAR & EMOJI PICKER
+   ================================ */
+
+/* Anchor for positioning reaction UI */
+.reaction-anchor {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Quick reaction bar */
+.reaction-bar {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 6px;
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.25);
+  border: 1px solid var(--border-medium);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  z-index: 40;
+  animation: reactionBarFadeIn 0.15s ease-out;
+}
+
+@keyframes reactionBarFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+/* Emoji buttons in reaction bar */
+.reaction-bar-emoji {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  transition:
+    background-color 110ms ease,
+    transform 80ms ease;
+}
+
+.reaction-bar-emoji:hover,
+.reaction-bar-emoji:focus-visible {
+  background-color: #f3f4f6;
+  transform: scale(1.1);
+}
+
+.reaction-bar-emoji:active {
+  transform: scale(0.95);
+}
+
+/* Plus button in reaction bar */
+.reaction-bar-plus {
+  font-size: 18px;
+  font-weight: 500;
+  color: #6b7280;
+}
+
+/* Large emoji picker panel */
+.emoji-picker-panel {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 320px;
+  max-height: 400px;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 20px 45px rgba(15, 23, 42, 0.35);
+  border: 1px solid var(--border-medium);
+  padding: 8px 10px 10px;
+  z-index: 50;
+  overflow: hidden;
+  animation: emojiPickerFadeIn 0.18s ease-out;
+}
+
+@keyframes emojiPickerFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+/* Search bar in emoji picker */
+.emoji-picker-search {
+  margin-bottom: 8px;
+}
+
+.emoji-picker-search input {
+  width: 100%;
+  border-radius: 999px;
+  border: 1px solid var(--border-medium);
+  padding: 6px 10px;
+  font-size: 13px;
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.15s ease;
+}
+
+.emoji-picker-search input:focus {
+  border-color: var(--selection-blue);
+}
+
+/* Scrollable content area */
+.emoji-picker-content {
+  max-height: 320px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+/* Custom scrollbar for emoji picker */
+.emoji-picker-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.emoji-picker-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.emoji-picker-content::-webkit-scrollbar-thumb {
+  background-color: #d1d5db;
+  border-radius: 999px;
+}
+
+.emoji-picker-content::-webkit-scrollbar-thumb:hover {
+  background-color: #9ca3af;
+}
+
+/* Emoji category sections */
+.emoji-picker-section {
+  margin-bottom: 12px;
+}
+
+.emoji-picker-section-title {
+  font-size: 12px;
+  font-weight: 500;
+  color: #6b7280;
+  margin: 4px 2px 6px;
+}
+
+/* Grid of emojis */
+.emoji-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 4px;
+}
+
+/* Individual emoji button */
+.emoji-picker-item {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  font-size: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    background-color 110ms ease,
+    transform 80ms ease;
+}
+
+.emoji-picker-item:hover,
+.emoji-picker-item:focus-visible {
+  background-color: #f3f4f6;
+  transform: scale(1.15);
+}
+
+.emoji-picker-item:active {
+  background-color: #e5e7eb;
+  transform: scale(1.05);
+}
+
+/* ================================
+   REACTION PILLS ON MESSAGES
+   ================================ */
+
+/* Wrapper for bubble + reaction pill positioning */
+.message-bubble-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+/* White rounded pill overlapping bubble bottom-right */
+.message-reactions-pill {
+  position: absolute;
+  right: 6px;
+  bottom: -10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background-color: #ffffff;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  font-size: 12px;
+  z-index: 5;
+}
+
+/* Individual emojis in the pill */
+.message-reaction-emoji {
+  font-size: 16px;
+  line-height: 1;
+}
+
+/* Count on the right, subtle gray */
+.message-reaction-count {
+  margin-left: 2px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #4b5563;
+}
+
+/* ================================
    COMPOSER – SIMPLE INPUT
    ================================ */
 
@@ -729,27 +1200,42 @@
   flex: 1;
   position: relative;
   display: flex;
-  align-items: flex-end;
+  flex-direction: column;
+  align-items: stretch;
 }
 
-/* Simple text field */
+/* White pill container for textarea and toolbar */
+.composer-field {
+  display: flex;
+  flex-direction: column;
+  border-radius: 12px;
+  border: 3px solid transparent;
+  background: #FFFFFF;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08), inset 0 0 0 1px var(--border-medium);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  overflow: hidden;
+}
+
+.composer-field:focus-within {
+  border: 3px solid var(--selection-blue);
+  box-shadow: none;
+}
+
+/* Textarea inside composer field */
 .composer-inner textarea {
   width: 100%;
   min-height: 62px;
-  max-height: 200px;
+  max-height: 500px;
   height: auto;
-  border-radius: 12px;
-  border: 1px solid var(--border-medium);
-  padding: 18px 58px 18px 58px;
+  border: none;
+  padding: 18px 58px 18px 60px;
   font-family: inherit;
   font-size: 19px;
   line-height: 1.5;
   resize: none;
   outline: none;
-  background: #FFFFFF;
+  background: transparent;
   color: var(--text-primary);
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   overflow-y: auto;
 }
 
@@ -757,16 +1243,10 @@
   color: var(--text-tertiary);
 }
 
-.composer-inner textarea:focus {
-  border-color: var(--selection-blue);
-  background: #FFFFFF;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12), 0 0 0 3px rgba(41, 117, 245, 0.2);
-}
-
-/* Send button - anchored to bottom */
+/* Send button - anchored to top */
 .send-button {
   position: absolute;
-  bottom: 12px;
+  top: 15px;
   right: 12px;
   width: 38px;
   height: 38px;
@@ -800,10 +1280,10 @@
   cursor: not-allowed;
 }
 
-/* Add button - anchored to bottom */
+/* Add button - anchored to top */
 .add-button {
   position: absolute;
-  bottom: 12px;
+  top: 15px;
   left: 12px;
   width: 38px;
   height: 38px;
@@ -840,10 +1320,15 @@
   transform: rotate(45deg);
 }
 
+.add-button.formatting-active {
+  background: rgba(139, 92, 246, 0.12);
+  color: #8B5CF6;
+}
+
 /* Attachment Menu Popover */
 .attach-menu {
   position: absolute;
-  bottom: 58px;
+  bottom: calc(100% - 15px);
   left: 12px;
   background: #FFFFFF;
   border: 2px solid var(--border-medium);
@@ -905,13 +1390,79 @@
 }
 
 /* ================================
+   FORMATTING TOOLBAR
+   ================================ */
+
+.composer-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0px 12px 12px 12px;
+  font-size: 13px;
+  color: #9ca3af;
+  background: #FFFFFF;
+}
+
+/* Individual format buttons - match add/send button styling */
+.toolbar-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  border: none;
+  background: transparent;
+  color: #9ca3af;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition:
+    background-color 120ms ease,
+    box-shadow 120ms ease,
+    transform 80ms ease,
+    color 120ms ease;
+  font-size: 20px;
+}
+
+.toolbar-btn:hover,
+.toolbar-btn:focus-visible {
+  background-color: rgba(0, 0, 0, 0.06);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.18);
+  transform: translateY(-1px);
+  color: #4b5563;
+}
+
+.toolbar-btn:active {
+  background-color: rgba(0, 0, 0, 0.1);
+  transform: translateY(0);
+}
+
+/* Typographic icons for formatting buttons */
+.toolbar-text-icon {
+  font-weight: 500;
+  font-size: 20px;
+}
+
+.toolbar-text-icon--italic {
+  font-style: italic;
+}
+
+.toolbar-text-icon--underline {
+  text-decoration: underline;
+}
+
+.toolbar-text-icon--strike {
+  text-decoration: line-through;
+}
+
+/* ================================
    SCROLL TO BOTTOM INDICATOR
    ================================ */
 
 .scroll-down-indicator {
   position: absolute;
   left: 50%;
-  bottom: 100px;
+  /* bottom is set dynamically via inline style */
   transform: translateX(-50%) translateY(6px);
   width: 40px;
   height: 40px;
@@ -928,7 +1479,8 @@
   transition:
     opacity 140ms ease,
     transform 140ms ease,
-    box-shadow 120ms ease;
+    box-shadow 120ms ease,
+    bottom 200ms ease;
   padding: 0;
   z-index: 50;
 }
