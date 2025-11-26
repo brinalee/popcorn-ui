@@ -10,121 +10,38 @@ export const channels = [
       {
         id: "sev-1",
         senderType: "human",
-        author: "Brina",
-        initials: "B",
+        author: "oguz",
+        initials: "O",
         avatarColor: "gray",
-        avatarUrl: "https://i.pravatar.cc/150?img=1",
-        timestamp: "2024-12-14T09:41:00Z",
+        avatarUrl: "https://i.pravatar.cc/150?img=12",
+        timestamp: "2025-11-24T09:15:00Z",
         bubbles: [
-          "Anyone seeing elevated 500s on api-gateway? Pager just went off."
+          "Seeing a spike in 500s on the `/login` endpoint.\n\nHere's the handler we just deployed:\n\n```ts\nexport async function loginHandler(req: Request): Promise<Response> {\n  const { email, password } = await req.json();\n\n  const user = await db.user.findUnique({ where: { email } });\n  if (!user) {\n    return new Response(\"Invalid credentials\", { status: 401 });\n  }\n\n  const ok = await verifyPassword(password, user.hashedPassword);\n  if (!ok) {\n    return new Response(\"Invalid credentials\", { status: 401 });\n  }\n\n  return redirect(\"/home\");\n}\n```"
         ]
       },
       {
         id: "sev-2",
         senderType: "human",
-        author: "Tom",
-        initials: "T",
+        author: "You",
+        initials: "YO",
         avatarColor: "gray",
-        avatarUrl: "https://i.pravatar.cc/150?img=12",
-        timestamp: "2024-12-14T09:42:00Z",
+        avatarUrl: "https://i.pravatar.cc/150?img=68",
+        isYou: true,
+        timestamp: "2025-11-24T09:17:00Z",
         bubbles: [
-          "Yep, prod-us-west-2 is flapping. Dashboards show a spike starting right after deploy #428."
+          "The handler itself looks fine. I think the issue is upstream.\n\nCan you log the body we get back from the auth service?\n\n```ts\nconst resp = await fetch(authUrl, { method: \"POST\", body: JSON.stringify(payload) });\n\nif (!resp.ok) {\n  console.error(\"Auth service failed\", {\n    status: resp.status,\n    body: await resp.text(),\n  });\n  return new Response(\"Auth service error\", { status: 502 });\n}\n```"
         ]
       },
       {
         id: "sev-3",
         senderType: "human",
-        author: "Aisha",
-        initials: "A",
-        avatarColor: "gray",
-        avatarUrl: "https://i.pravatar.cc/150?img=5",
-        timestamp: "2024-12-14T09:43:00Z",
-        bubbles: [
-          "Looking at the logs, most errors are on /billing/charge. Could be the currency refactor?"
-        ]
-      },
-      {
-        id: "sev-4",
-        senderType: "agent",
-        author: "XML Agent",
-        initials: "A",
-        avatarColor: "green",
-        agentLabel: "XML AGENT",
-        timestamp: "2024-12-14T09:44:00Z",
-        bubbles: [
-          "I'm seeing error spikes in deploy #428 around the /billing route. It correlates with this PR in GitHub: https://github.com/kewl/infra-incidents/pull/128"
-        ]
-      },
-      {
-        id: "sev-5",
-        senderType: "human",
-        author: "Devon",
-        initials: "D",
-        avatarColor: "gray",
-        avatarUrl: "https://i.pravatar.cc/150?img=33",
-        timestamp: "2024-12-14T09:45:00Z",
-        bubbles: [
-          "PR 128 changed the retry logic on Stripe timeouts. Maybe we're retrying in a way that double-charges?"
-        ]
-      },
-      {
-        id: "sev-6",
-        senderType: "human",
-        author: "Tom",
-        initials: "T",
+        author: "oguz",
+        initials: "O",
         avatarColor: "gray",
         avatarUrl: "https://i.pravatar.cc/150?img=12",
-        timestamp: "2024-12-14T09:46:00Z",
+        timestamp: "2025-11-24T09:20:00Z",
         bubbles: [
-          "Linking another one: https://github.com/kewl/infra-incidents/pull/131 – added a new feature flag `BILLING_STRICT_MODE`."
-        ]
-      },
-      {
-        id: "sev-7",
-        senderType: "agent",
-        author: "XML Agent",
-        initials: "A",
-        avatarColor: "green",
-        agentLabel: "XML AGENT",
-        timestamp: "2024-12-14T09:47:00Z",
-        bubbles: [
-          "Comparing PR 128 and PR 131: PR 131 enables BILLING_STRICT_MODE by default in production. That flag is only tested in staging. Suggest: roll back PR 131 or flip the flag off."
-        ]
-      },
-      {
-        id: "sev-8",
-        senderType: "human",
-        author: "Aisha",
-        initials: "A",
-        avatarColor: "gray",
-        avatarUrl: "https://i.pravatar.cc/150?img=5",
-        timestamp: "2024-12-14T09:48:00Z",
-        bubbles: [
-          "Agree. I'll toggle BILLING_STRICT_MODE off in prod and watch 500s."
-        ]
-      },
-      {
-        id: "sev-9",
-        senderType: "human",
-        author: "Brina",
-        initials: "B",
-        avatarColor: "gray",
-        avatarUrl: "https://i.pravatar.cc/150?img=1",
-        timestamp: "2024-12-14T09:49:00Z",
-        bubbles: [
-          "On it. Also let's capture a quick timeline in the incident doc; dropping link: https://github.com/kewl/runbooks/blob/main/incidents/2025-11-billing-sev.md"
-        ]
-      },
-      {
-        id: "sev-10",
-        senderType: "agent",
-        author: "XML Agent",
-        initials: "A",
-        avatarColor: "green",
-        agentLabel: "XML AGENT",
-        timestamp: "2024-12-14T09:50:00Z",
-        bubbles: [
-          "I'll append the current hypothesis and mitigation to the incident doc and pin this thread to #sev-incidents for later review."
+          "Yep, looks like we're not handling timeouts.\n\n```ts\nconst controller = new AbortController();\nconst timeout = setTimeout(() => controller.abort(), 5_000);\n\ntry {\n  const resp = await fetch(authUrl, {\n    method: \"POST\",\n    signal: controller.signal,\n    body: JSON.stringify(payload),\n  });\n  // ...\n} catch (err) {\n  if (err.name === \"AbortError\") {\n    return new Response(\"Auth service timeout\", { status: 504 });\n  }\n  throw err;\n}\n```\n\nLet's hotfix this and redeploy."
         ]
       }
     ]

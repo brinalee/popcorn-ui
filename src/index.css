@@ -28,6 +28,18 @@
   --border-medium: #E0E0E0;
   --border-dark: #D0D0D0;
 
+  /* GitHub Desktop-inspired theme tokens */
+  --k-bg-window: #f0f0f0;
+  --k-bg-surface: #f7f7f7;
+  --k-bg-modal: #ffffff;
+  --k-border-subtle: #d0d0d0;
+  --k-accent: #3478f6;
+  --k-accent-soft: #e3edff;
+  --k-accent-border: #c7d7ff;
+  --k-radius-md: 10px;
+  --k-radius-lg: 16px;
+  --k-radius-xl: 20px;
+
   /* Soft drop shadows */
   --shadow-soft: 0 2px 4px rgba(0, 0, 0, 0.08);
   --shadow-bubble: 0 1px 3px rgba(0, 0, 0, 0.1);

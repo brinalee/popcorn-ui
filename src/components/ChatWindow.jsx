@@ -5,7 +5,22 @@ import ReactionBar from "./ReactionBar";
 import EmojiPickerPanel from "./EmojiPickerPanel";
 import ReactionPill from "./ReactionPill";
 import ReplySummaryRow from "./ReplySummaryRow";
+import InlineFormattingToolbar from "./InlineFormattingToolbar";
+import ActionMenu from "./ActionMenu";
 import { threads } from "../mockData";
+
+// Prism.js for syntax highlighting
+import Prism from "prismjs";
+import "prismjs/themes/prism.css"; // Light theme for syntax colors
+import "prismjs/components/prism-javascript";
+import "prismjs/components/prism-typescript";
+import "prismjs/components/prism-jsx";
+import "prismjs/components/prism-tsx";
+import "prismjs/components/prism-json";
+import "prismjs/components/prism-bash";
+import "prismjs/components/prism-markdown";
+import "prismjs/components/prism-css";
+import "prismjs/components/prism-python";
 
 // Attachment type definition
 // type Attachment = {
@@ -30,6 +45,21 @@ function formatTimestamp(timestamp) {
   const ampm = date.getHours() >= 12 ? 'pm' : 'am';
 
   return `${month} ${day}, ${hours}:${minutes}${ampm}`;
+}
+
+// Sidebar toggle icon
+function SidebarToggleIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+      <path
+        d="M3 4h14M3 10h14M3 16h14"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
 }
 
 // AttachmentTile component
@@ -69,7 +99,7 @@ function AttachmentTile({ attachment, onRemove }) {
   );
 }
 
-function ChatWindow({ channel, threadId = null }) {
+function ChatWindow({ channel, threadId = null, showSidebarToggle = false, onToggleSidebar = () => {} }) {
   const navigate = useNavigate();
   const { channelId } = useParams();
 
@@ -97,7 +127,6 @@ function ChatWindow({ channel, threadId = null }) {
   const [draft, setDraft] = useState("");
   const [localMessages, setLocalMessages] = useState(displayMessages);
   const [isAttachMenuOpen, setIsAttachMenuOpen] = useState(false);
-  const [isFormattingOn, setIsFormattingOn] = useState(false);
   const [showScrollDown, setShowScrollDown] = useState(false);
   const [userHasScrolled, setUserHasScrolled] = useState(false);
   const [composerHeight, setComposerHeight] = useState(100);
@@ -106,6 +135,8 @@ function ChatWindow({ channel, threadId = null }) {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [chipReactionBarMessageId, setChipReactionBarMessageId] = useState(null);
   const [attachments, setAttachments] = useState([]);
+  const [toolbarVisible, setToolbarVisible] = useState(false);
+  const [toolbarPos, setToolbarPos] = useState({ top: 0, left: 0 });
   const textareaRef = useRef(null);
   const reactionBarRef = useRef(null);
   const emojiPickerRef = useRef(null);
@@ -249,24 +280,6 @@ function ChatWindow({ channel, threadId = null }) {
     };
   }, []);
 
-  // Measure composer height when formatting toolbar toggles
-  useEffect(() => {
-    const measureComposerHeight = () => {
-      if (composerRef.current) {
-        const height = composerRef.current.offsetHeight;
-        setComposerHeight(height);
-      }
-    };
-
-    // Measure immediately
-    measureComposerHeight();
-
-    // Measure again after a short delay to account for animation
-    const timer = setTimeout(measureComposerHeight, 100);
-
-    return () => clearTimeout(timer);
-  }, [isFormattingOn]);
-
   const handleSend = () => {
     const trimmed = draft.trim();
     // Allow sending if there's text OR attachments
@@ -313,9 +326,57 @@ function ChatWindow({ channel, threadId = null }) {
     setIsAttachMenuOpen((prev) => !prev);
   };
 
-  const toggleFormatting = () => {
-    setIsFormattingOn((prev) => !prev);
-    setIsAttachMenuOpen(false);
+  // Text selection detection for inline formatting toolbar
+  const updateToolbarFromSelection = () => {
+    const editor = textareaRef.current;
+    const container = composerRef.current;
+    if (!editor || !container) return;
+
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) {
+      setToolbarVisible(false);
+      return;
+    }
+
+    const range = selection.getRangeAt(0);
+
+    // Only show if selection is inside the editor and not collapsed
+    if (
+      selection.isCollapsed ||
+      !editor.contains(range.commonAncestorContainer)
+    ) {
+      setToolbarVisible(false);
+      return;
+    }
+
+    const rect = range.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+
+    if (!rect || (rect.width === 0 && rect.height === 0)) {
+      setToolbarVisible(false);
+      return;
+    }
+
+    // Position toolbar above selection, centered
+    const top = rect.top - containerRect.top - 45; // 45px above selection
+    const left = rect.left - containerRect.left + rect.width / 2;
+
+    setToolbarPos({ top: Math.max(top, 0), left });
+    setToolbarVisible(true);
+  };
+
+  // Formatting handlers
+  const handleFormat = (command) => {
+    document.execCommand(command, false, null);
+    updateToolbarFromSelection();
+  };
+
+  const handleLink = () => {
+    const url = prompt('Enter link URL:');
+    if (url) {
+      document.execCommand('createLink', false, url);
+      updateToolbarFromSelection();
+    }
   };
 
   // File selection handler
@@ -492,6 +553,16 @@ function ChatWindow({ channel, threadId = null }) {
       <header className="top-bar">
         {threadId ? (
           <div className="top-bar-title">
+            {showSidebarToggle && (
+              <button
+                type="button"
+                className="sidebar-toggle-btn"
+                onClick={onToggleSidebar}
+                aria-label="Pin sidebar"
+              >
+                <SidebarToggleIcon />
+              </button>
+            )}
             <button
               type="button"
               className="top-bar-back-button"
@@ -521,6 +592,16 @@ function ChatWindow({ channel, threadId = null }) {
           </div>
         ) : (
           <div className="top-bar-title">
+            {showSidebarToggle && (
+              <button
+                type="button"
+                className="sidebar-toggle-btn"
+                onClick={onToggleSidebar}
+                aria-label="Pin sidebar"
+              >
+                <SidebarToggleIcon />
+              </button>
+            )}
             <span
               className={
                 "sidebar-icon " + (iconIsHash ? "hash" : "bolt")
@@ -657,16 +738,6 @@ function ChatWindow({ channel, threadId = null }) {
                     </svg>
                   ),
                   onClick: () => handleAttachOption('emoji')
-                },
-                {
-                  key: 'formatting',
-                  label: isFormattingOn ? "✓ Formatting" : "Formatting",
-                  icon: (
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                      <path d="M4 7V4h16v3M9 20h6M12 4v16" stroke="#8B5CF6" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  ),
-                  onClick: toggleFormatting
                 }
               ]}
               isOpen={isAttachMenuOpen}
@@ -696,18 +767,33 @@ function ChatWindow({ channel, threadId = null }) {
               <div className="composer-input-area">
                 <button
                   ref={addButtonRef}
-                  className={"add-button" + (isAttachMenuOpen ? " active" : "") + (isFormattingOn ? " formatting-active" : "")}
+                  className={"add-button" + (isAttachMenuOpen ? " active" : "")}
                   onClick={toggleAttachMenu}
                 >
                   <span className="add-button-icon">+</span>
                 </button>
 
-                <textarea
+                <div
                   ref={textareaRef}
-                  value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
-                  placeholder={`Message #${channel.label}`}
-                  rows={1}
+                  className="composer-field"
+                  contentEditable
+                  suppressContentEditableWarning
+                  onInput={(e) => setDraft(e.currentTarget.textContent || "")}
+                  onMouseUp={updateToolbarFromSelection}
+                  onKeyUp={updateToolbarFromSelection}
+                  onBlur={() => setTimeout(() => setToolbarVisible(false), 200)}
+                  onPaste={(e) => {
+                    // Prevent formatted paste - insert as plain text
+                    e.preventDefault();
+                    const text = e.clipboardData.getData('text/plain');
+                    document.execCommand('insertText', false, text);
+                  }}
+                  data-placeholder={`Message #${channel.label}`}
+                  style={{
+                    minHeight: '20px',
+                    maxHeight: '200px',
+                    overflowY: 'auto',
+                  }}
                 />
 
                 <button
@@ -733,7 +819,18 @@ function ChatWindow({ channel, threadId = null }) {
                 </button>
               </div>
 
-              {isFormattingOn && <FormattingToolbar />}
+              {/* Inline formatting toolbar */}
+              <InlineFormattingToolbar
+                visible={toolbarVisible}
+                top={toolbarPos.top}
+                left={toolbarPos.left}
+                onBold={() => handleFormat('bold')}
+                onItalic={() => handleFormat('italic')}
+                onUnderline={() => handleFormat('underline')}
+                onStrikethrough={() => handleFormat('strikeThrough')}
+                onCode={() => handleFormat('formatBlock')}
+                onLink={handleLink}
+              />
             </div>
           </div>
 
@@ -758,74 +855,125 @@ function ChatWindow({ channel, threadId = null }) {
   );
 }
 
-// Helper function to parse and style @mentions
-function parseMentions(text) {
-  const parts = text.split(/(@\w+)/g);
-  return parts.map((part, index) => {
-    if (part.startsWith('@')) {
-      return <span key={index} className="mention">{part}</span>;
+// Parse message content into blocks (text, code, mentions)
+function parseMessageContent(content) {
+  const lines = content.split("\n");
+  const blocks = [];
+  let currentText = [];
+  let inCode = false;
+  let codeLang = undefined;
+  let codeLines = [];
+
+  const flushText = () => {
+    if (currentText.length) {
+      const text = currentText.join("\n");
+      blocks.push({ type: "text", text });
+      currentText = [];
     }
-    return part;
+  };
+
+  for (const line of lines) {
+    const fenceMatch = line.match(/^```(\w+)?\s*$/);
+    if (fenceMatch) {
+      if (!inCode) {
+        // Starting a code block
+        flushText();
+        inCode = true;
+        codeLang = fenceMatch[1];
+        codeLines = [];
+      } else {
+        // Closing code block
+        blocks.push({
+          type: "code",
+          language: codeLang,
+          code: codeLines.join("\n"),
+        });
+        inCode = false;
+        codeLang = undefined;
+        codeLines = [];
+      }
+      continue;
+    }
+
+    if (inCode) {
+      codeLines.push(line);
+    } else {
+      currentText.push(line);
+    }
+  }
+
+  flushText();
+
+  return blocks;
+}
+
+// Render text with @mentions and inline code highlighted
+function renderTextWithMentions(text) {
+  // First split by inline code (backticks), then by mentions
+  const codePattern = /(`[^`]+`)/g;
+  const codeParts = text.split(codePattern);
+
+  return codeParts.map((codePart, codeIndex) => {
+    // If this part is inline code (wrapped in backticks)
+    if (codePart.startsWith('`') && codePart.endsWith('`')) {
+      const codeContent = codePart.slice(1, -1); // Remove backticks
+      return (
+        <code key={`code-${codeIndex}`} className="inline-code">
+          {codeContent}
+        </code>
+      );
+    }
+
+    // Otherwise, process for mentions
+    const mentionParts = codePart.split(/(@\w+)/g);
+    return mentionParts.map((part, mentionIndex) => {
+      if (part.startsWith('@')) {
+        return <span key={`${codeIndex}-${mentionIndex}`} className="mention">{part}</span>;
+      }
+      return <React.Fragment key={`${codeIndex}-${mentionIndex}`}>{part}</React.Fragment>;
+    });
   });
 }
 
-// Shared ActionMenu component for all dropdown menus
-function ActionMenu({ items, isOpen, onClose, anchorRef, position }) {
-  const menuRef = useRef(null);
+// Render message blocks (text + code)
+function renderMessageBlocks(content) {
+  const blocks = parseMessageContent(content);
 
-  // Close menu on click outside or Escape key
-  useEffect(() => {
-    if (!isOpen) return;
+  return blocks.map((block, idx) => {
+    if (block.type === "text") {
+      const trimmedText = block.text.trim();
+      if (!trimmedText) return null;
 
-    function handleClickOutside(event) {
-      const target = event.target;
-      if (
-        menuRef.current &&
-        !menuRef.current.contains(target) &&
-        anchorRef?.current &&
-        !anchorRef.current.contains(target)
-      ) {
-        onClose();
-      }
-    }
+      return (
+        <p key={idx} className="message-paragraph">
+          {renderTextWithMentions(trimmedText)}
+        </p>
+      );
+    } else if (block.type === "code") {
+      const language = block.language || "typescript";
+      const grammar = Prism.languages[language] || Prism.languages.typescript;
+      const highlightedCode = Prism.highlight(block.code, grammar, language);
 
-    function handleKeyDown(event) {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    }
-
-    document.addEventListener("mousedown", handleClickOutside);
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [isOpen, onClose, anchorRef]);
-
-  if (!isOpen) return null;
-
-  return (
-    <div
-      ref={menuRef}
-      className="menu-card"
-      role="menu"
-      style={position}
-    >
-      {items.map((item) => (
-        <button
-          key={item.key}
-          type="button"
-          className="menu-item"
-          role="menuitem"
-          onClick={item.onClick}
+      return (
+        <pre
+          key={idx}
+          className="message-code-block"
+          data-lang={block.language || ""}
         >
-          <span className="menu-icon">{item.icon}</span>
-          <span className="menu-label">{item.label}</span>
-        </button>
-      ))}
-    </div>
-  );
+          <code
+            className={`language-${language}`}
+            dangerouslySetInnerHTML={{ __html: highlightedCode }}
+          />
+        </pre>
+      );
+    }
+    return null;
+  });
+}
+
+// Helper function to parse and style @mentions (backwards compatibility)
+function parseMentions(text) {
+  return renderMessageBlocks(text);
 }
 
 // More menu component for message actions
@@ -1127,7 +1275,7 @@ function MessageGroup({
             const isMenuOpen = openMenuId === bubbleId;
             const bubbleReactions = msg.reactions?.[idx] || [];
             return (
-              <div key={idx} className="message-bubble-container">
+              <div key={idx} className={"message-bubble-container" + (isContinuation ? " continuation" : "")}>
                 <div className="message-bubble-row">
                   <div className="message-bubble-wrapper">
                     <div className="msg-bubble agent">
@@ -1361,7 +1509,7 @@ function MessageGroup({
             const bubbleId = `${msg.id}-${idx}`;
             const bubbleReactions = msg.reactions?.[idx] || [];
             return (
-              <div key={idx} className="message-bubble-container">
+              <div key={idx} className={"message-bubble-container" + (isContinuation ? " continuation" : "")}>
                 <div className="ai-message-text">
                   {parseMentions(bubble)}
                 </div>
@@ -1589,7 +1737,7 @@ function MessageGroup({
           const isMenuOpen = openMenuId === bubbleId;
           const bubbleReactions = msg.reactions?.[idx] || [];
           return (
-            <div key={idx} className="message-bubble-container">
+            <div key={idx} className={"message-bubble-container" + (isContinuation ? " continuation" : "")}>
               <div className="message-bubble-row">
                 <div className="message-bubble-wrapper">
                   <div
@@ -1856,86 +2004,6 @@ function ScrollToBottomButton({ visible, onClick, composerHeight }) {
           strokeLinejoin="round"
         />
       </svg>
-    </button>
-  );
-}
-
-// Formatting toolbar component
-function FormattingToolbar() {
-  const handleFormat = (type) => {
-    console.log('Format:', type);
-    // TODO: Implement formatting logic
-  };
-
-  return (
-    <div className="composer-toolbar">
-      <ToolbarButton label="Bold" onClick={() => handleFormat('bold')}>
-        <span className="toolbar-text-icon">B</span>
-      </ToolbarButton>
-
-      <ToolbarButton label="Italic" onClick={() => handleFormat('italic')}>
-        <span className="toolbar-text-icon toolbar-text-icon--italic">I</span>
-      </ToolbarButton>
-
-      <ToolbarButton label="Underline" onClick={() => handleFormat('underline')}>
-        <span className="toolbar-text-icon toolbar-text-icon--underline">U</span>
-      </ToolbarButton>
-
-      <ToolbarButton label="Strikethrough" onClick={() => handleFormat('strike')}>
-        <span className="toolbar-text-icon toolbar-text-icon--strike">S</span>
-      </ToolbarButton>
-
-      <ToolbarButton label="Link" onClick={() => handleFormat('link')}>
-        <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
-          <path
-            d="M9.5 14.5L8 16a3 3 0 104.2 4.2l2-2"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          <path
-            d="M14.5 9.5L16 8a3 3 0 10-4.2-4.2l-2 2"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-      </ToolbarButton>
-
-      <ToolbarButton label="Numbered list" onClick={() => handleFormat('ol')}>
-        <span className="toolbar-text-icon">1•</span>
-      </ToolbarButton>
-
-      <ToolbarButton label="Bulleted list" onClick={() => handleFormat('ul')}>
-        <span className="toolbar-text-icon">••</span>
-      </ToolbarButton>
-
-      <ToolbarButton label="Inline code" onClick={() => handleFormat('code')}>
-        <span className="toolbar-text-icon">{"</>"}</span>
-      </ToolbarButton>
-
-      <ToolbarButton label="Code block" onClick={() => handleFormat('codeblock')}>
-        <span className="toolbar-text-icon">{"{ }"}</span>
-      </ToolbarButton>
-    </div>
-  );
-}
-
-// Individual toolbar button component
-function ToolbarButton({ label, onClick, children }) {
-  return (
-    <button
-      type="button"
-      className="toolbar-btn"
-      onClick={onClick}
-      aria-label={label}
-      title={label}
-    >
-      {children}
     </button>
   );
 }
