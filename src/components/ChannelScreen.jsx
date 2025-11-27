@@ -12,6 +12,26 @@ const MIN_SIDEBAR_WIDTH = 300;
 const HIDE_THRESHOLD = 300;
 const HEADER_HEIGHT = 56;
 
+// Helper to generate a new release notes message with different content
+function buildRegeneratedReleaseNotes(webhookName) {
+  return {
+    id: `release-notes-${Date.now()}`,
+    senderType: "ai",
+    viaWebhook: webhookName,
+    timestamp: new Date().toISOString(),
+    metadata: {
+      type: "release_notes",
+      canRetry: true,
+      webhookName: webhookName,
+      generation: "retry",
+      forceNewGroup: true,
+    },
+    bubbles: [
+      `🚀 **v2.4.0** redeployed with updated notes\n\nThis pass focuses on making release notes clearer and more actionable for your team.\n\n**Changes**\n• ✨ Release notes can now be regenerated with a single click\n• 🔁 Retry button added next to react/reply on AI messages\n• 🧷 @webhook mentions now support multiple integrations per channel\n• 📝 Improved formatting for multi-section summaries\n• 🎯 Better change categorization for user vs internal fixes\n\n**Impact**\n• Fewer manual edits needed for release updates\n• Teams can quickly iterate on wording before sharing\n• Clearer separation between user-facing and internal changes\n\n**Non-user facing**\n• Tweaked webhook payload normalizer for better error messages\n• Minor performance tuning in the Markdown renderer`
+    ]
+  };
+}
+
 function ChannelScreen() {
   const { channelId, threadId } = useParams();
   const navigate = useNavigate();
@@ -72,8 +92,36 @@ function ChannelScreen() {
   };
 
   const handleSaveSettings = (updatedChannel) => {
+    let channelToSave = updatedChannel;
+
+    // Seed demo AI message for release-notes template (only once)
+    if (updatedChannel.templateId === "release-notes" && !updatedChannel.hasSeededReleaseNotesDemo) {
+      const webhookName = updatedChannel.webhooks?.[0]?.name || "Release event";
+
+      const demoMessage = {
+        id: `demo-release-${Date.now()}`,
+        senderType: "ai",
+        viaWebhook: webhookName,
+        timestamp: new Date().toISOString(),
+        metadata: {
+          type: "release_notes",
+          canRetry: true,
+          webhookName: webhookName,
+        },
+        bubbles: [
+          `🚀 **v2.4.0** deployed to production\n\nBig one! This release introduces automated release notes powered by webhooks, plus a bunch of quality-of-life improvements across the board.\n\n**Changes**\n• ✨ Channels can now auto-generate release notes from CI/CD webhooks\n• 🔗 New @webhook mentions let you reference integrations directly in instructions\n• 📝 Rich text support in channel settings with inline formatting\n• ⚡ Message rendering is now 2x faster on long threads\n• 🎨 Refreshed settings UI with collapsible sections\n\n**Non-user facing**\n• Migrated webhook payload parsing to new validation layer\n• Fixed memory leak in long-running WebSocket connections`
+        ]
+      };
+
+      channelToSave = {
+        ...updatedChannel,
+        hasSeededReleaseNotesDemo: true,
+        messages: [demoMessage, ...(updatedChannel.messages || [])]
+      };
+    }
+
     setChannels((prev) =>
-      prev.map((ch) => (ch.id === updatedChannel.id ? updatedChannel : ch))
+      prev.map((ch) => (ch.id === channelToSave.id ? channelToSave : ch))
     );
     setViewMode("channel");
   };
@@ -84,6 +132,54 @@ function ChannelScreen() {
     if (prevChannelIdRef.current) {
       navigate(`/channel/${prevChannelIdRef.current}`);
     }
+  };
+
+  const handleRetryReleaseNotes = (messageId) => {
+    // Find the message in the active channel
+    const message = activeChannel?.messages?.find(m => m.id === messageId);
+    if (message?.metadata?.type !== "release_notes") return;
+
+    const webhookName = message.metadata?.webhookName || "Release event";
+
+    // 1) Add typing placeholder
+    const typingMessage = {
+      id: `typing-${Date.now()}`,
+      senderType: "ai",
+      viaWebhook: webhookName,
+      timestamp: new Date().toISOString(),
+      metadata: { isTypingPlaceholder: true },
+      bubbles: ["_Regenerating release notes..._"]
+    };
+
+    setChannels(prev => prev.map(ch =>
+      ch.id === channelId
+        ? { ...ch, messages: [...(ch.messages || []), typingMessage] }
+        : ch
+    ));
+
+    // 2) After delay, replace with regenerated message
+    setTimeout(() => {
+      const newMessage = buildRegeneratedReleaseNotes(webhookName);
+
+      setChannels(prev => prev.map(ch =>
+        ch.id === channelId
+          ? {
+              ...ch,
+              messages: (ch.messages || [])
+                .filter(m => m.id !== typingMessage.id)
+                .concat(newMessage)
+            }
+          : ch
+      ));
+    }, 1200);
+  };
+
+  const handleDeleteMessage = (messageId) => {
+    setChannels(prev => prev.map(ch =>
+      ch.id === channelId
+        ? { ...ch, messages: (ch.messages || []).filter(m => m.id !== messageId) }
+        : ch
+    ));
   };
 
   // Trigger animation when sidebar becomes visible in peek mode
@@ -198,6 +294,7 @@ function ChannelScreen() {
       <main className="app-main">
         {activeChannel && viewMode === "channel-settings" ? (
           <ChannelSettingsPage
+            key={activeChannel.id}
             channel={activeChannel}
             onSave={handleSaveSettings}
             onCancel={handleCancelSettings}
@@ -208,6 +305,8 @@ function ChannelScreen() {
             threadId={threadId}
             showSidebarToggle={!isSidebarSticky}
             onToggleSidebar={handleToggleSidebar}
+            onRetryReleaseNotes={handleRetryReleaseNotes}
+            onDeleteMessage={handleDeleteMessage}
           />
         ) : null}
       </main>

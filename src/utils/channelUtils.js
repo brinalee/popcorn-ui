@@ -2,6 +2,14 @@
 
 let channelCounter = 1;
 
+const WEBHOOK_MODE_DEFAULTS = {
+  raw: "",
+  message: "Post the webhook payload as a message to this channel.",
+  markdown: "Format the webhook payload as a clean markdown message.",
+  summarize: "Summarize the webhook payload into key points.",
+  custom: "",
+};
+
 const baseNames = [
   "daily-updates",
   "team-hub",
@@ -72,20 +80,39 @@ export function createBlankChannel() {
 
 export function createChannelFromTemplate(templateData) {
   const id = `channel-${Date.now()}-${channelCounter}`;
-  const { slug, name, instructions } = templateData;
+  const { slug, name, instructions, initialWebhooks = [], getSettingsInstructions } = templateData;
 
   channelCounter += 1;
+
+  // Create webhooks with generated IDs
+  const webhooks = initialWebhooks.map((wh, index) => ({
+    id: `webhook-${id}-${index}`,
+    name: wh.name,
+    mode: wh.mode || "summarize",
+    url: `https://api.popcorn.dev/webhooks/${id}-${index}`,
+    createdAt: new Date().toISOString(),
+    customCommand: WEBHOOK_MODE_DEFAULTS[wh.mode] || "",
+  }));
+
+  // Generate instructions with webhook IDs if dynamic function provided
+  let finalInstructions = instructions || "";
+  if (getSettingsInstructions && webhooks.length > 0) {
+    finalInstructions = getSettingsInstructions(webhooks[0].id);
+  }
 
   return {
     id,
     iconType: "hash",
     label: slug || name,
     name: slug || name,
-    isPrivate: false,
-    instructions: instructions || "",
+    templateId: templateData.templateId || null,
+    hasSeededReleaseNotesDemo: false,
+    isPrivate: templateData.isPrivate || false,
+    instructions: finalInstructions,
     allowMentions: true,
     autoChime: false,
-    webhooks: [],
-    members: [],
+    webhooks,
+    members: templateData.memberIds || [],
+    messages: [],
   };
 }

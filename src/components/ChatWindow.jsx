@@ -99,7 +99,7 @@ function AttachmentTile({ attachment, onRemove }) {
   );
 }
 
-function ChatWindow({ channel, threadId = null, showSidebarToggle = false, onToggleSidebar = () => {} }) {
+function ChatWindow({ channel, threadId = null, showSidebarToggle = false, onToggleSidebar = () => {}, onRetryReleaseNotes, onDeleteMessage }) {
   const navigate = useNavigate();
   const { channelId } = useParams();
 
@@ -621,7 +621,8 @@ function ChatWindow({ channel, threadId = null, showSidebarToggle = false, onTog
             const prevMsg = index > 0 ? localMessages[index - 1] : null;
             const isContinuation = prevMsg &&
               prevMsg.author === msg.author &&
-              prevMsg.senderType === msg.senderType;
+              prevMsg.senderType === msg.senderType &&
+              !msg.metadata?.forceNewGroup;
             const isThreadRoot = threadId && index === 0;
             const replyCount = thread?.messages?.length || 0;
 
@@ -640,6 +641,8 @@ function ChatWindow({ channel, threadId = null, showSidebarToggle = false, onTog
                       setShowEmojiPicker={setShowEmojiPicker}
                       onReaction={handleReaction}
                       onReplyClick={handleReplyClick}
+                      onRetryReleaseNotes={onRetryReleaseNotes}
+                      onDeleteMessage={onDeleteMessage}
                       reactButtonRefs={reactButtonRefs}
                       reactionBarRef={reactionBarRef}
                       emojiPickerRef={emojiPickerRef}
@@ -669,6 +672,8 @@ function ChatWindow({ channel, threadId = null, showSidebarToggle = false, onTog
                     setShowEmojiPicker={setShowEmojiPicker}
                     onReaction={handleReaction}
                     onReplyClick={handleReplyClick}
+                    onRetryReleaseNotes={onRetryReleaseNotes}
+                    onDeleteMessage={onDeleteMessage}
                     reactButtonRefs={reactButtonRefs}
                     reactionBarRef={reactionBarRef}
                     emojiPickerRef={emojiPickerRef}
@@ -909,7 +914,7 @@ function parseMessageContent(content) {
 
 // Render text with @mentions and inline code highlighted
 function renderTextWithMentions(text) {
-  // First split by inline code (backticks), then by mentions
+  // First split by inline code (backticks), then by bold, then by mentions
   const codePattern = /(`[^`]+`)/g;
   const codeParts = text.split(codePattern);
 
@@ -924,13 +929,37 @@ function renderTextWithMentions(text) {
       );
     }
 
-    // Otherwise, process for mentions
-    const mentionParts = codePart.split(/(@\w+)/g);
-    return mentionParts.map((part, mentionIndex) => {
-      if (part.startsWith('@')) {
-        return <span key={`${codeIndex}-${mentionIndex}`} className="mention">{part}</span>;
+    // Process bold text (**text**)
+    const boldPattern = /(\*\*[^*]+\*\*)/g;
+    const boldParts = codePart.split(boldPattern);
+
+    return boldParts.map((boldPart, boldIndex) => {
+      // If this part is bold (wrapped in **)
+      if (boldPart.startsWith('**') && boldPart.endsWith('**')) {
+        const boldContent = boldPart.slice(2, -2); // Remove **
+        return <strong key={`${codeIndex}-bold-${boldIndex}`}>{boldContent}</strong>;
       }
-      return <React.Fragment key={`${codeIndex}-${mentionIndex}`}>{part}</React.Fragment>;
+
+      // Process italic text (_text_)
+      const italicPattern = /(_[^_]+_)/g;
+      const italicParts = boldPart.split(italicPattern);
+
+      return italicParts.map((italicPart, italicIndex) => {
+        // If this part is italic (wrapped in _)
+        if (italicPart.startsWith('_') && italicPart.endsWith('_') && italicPart.length > 2) {
+          const italicContent = italicPart.slice(1, -1); // Remove _
+          return <em key={`${codeIndex}-${boldIndex}-italic-${italicIndex}`}>{italicContent}</em>;
+        }
+
+        // Otherwise, process for mentions
+        const mentionParts = italicPart.split(/(@\w+)/g);
+        return mentionParts.map((part, mentionIndex) => {
+          if (part.startsWith('@')) {
+            return <span key={`${codeIndex}-${boldIndex}-${italicIndex}-${mentionIndex}`} className="mention">{part}</span>;
+          }
+          return <React.Fragment key={`${codeIndex}-${boldIndex}-${italicIndex}-${mentionIndex}`}>{part}</React.Fragment>;
+        });
+      });
     });
   });
 }
@@ -1228,6 +1257,8 @@ function MessageGroup({
   setShowEmojiPicker,
   onReaction,
   onReplyClick,
+  onRetryReleaseNotes,
+  onDeleteMessage,
   reactButtonRefs,
   reactionBarRef,
   emojiPickerRef,
@@ -1495,7 +1526,7 @@ function MessageGroup({
         <div className="msg-content">
           {!isContinuation && (
             <div className="msg-meta">
-              <span className="msg-name">@popcorn</span>
+              <span className="msg-name">@popcorn{msg.viaWebhook && <span className="msg-via"> via {msg.viaWebhook}</span>}</span>
               {(msg.timestamp || msg.time) && (
                 <span className="msg-time">
                   {msg.timestamp ? formatTimestamp(msg.timestamp) : msg.time}
@@ -1693,6 +1724,80 @@ function MessageGroup({
                       </svg>
                       <span className="message-tooltip">Reply</span>
                     </button>
+
+                    {msg.metadata?.type === "release_notes" && msg.metadata?.canRetry && onRetryReleaseNotes && (
+                      <button
+                        type="button"
+                        className="message-inline-action-btn"
+                        aria-label="Retry"
+                        onClick={() => onRetryReleaseNotes(msg.id)}
+                      >
+                        <svg
+                          viewBox="0 0 24 24"
+                          width="24"
+                          height="24"
+                          aria-hidden="true"
+                        >
+                          <path
+                            d="M4 12C4 7.58172 7.58172 4 12 4C14.5 4 16.75 5.12 18.25 6.88"
+                            fill="none"
+                            stroke="#9ca3af"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                          />
+                          <path
+                            d="M20 12C20 16.4183 16.4183 20 12 20C9.5 20 7.25 18.88 5.75 17.12"
+                            fill="none"
+                            stroke="#9ca3af"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                          />
+                          <path
+                            d="M15 7L18.5 7L18.5 3.5"
+                            fill="none"
+                            stroke="#9ca3af"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                          <path
+                            d="M9 17L5.5 17L5.5 20.5"
+                            fill="none"
+                            stroke="#9ca3af"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                        <span className="message-tooltip">Retry</span>
+                      </button>
+                    )}
+
+                    {isAI && (
+                      <button
+                        type="button"
+                        className="message-inline-action-btn"
+                        aria-label="Delete"
+                        onClick={() => onDeleteMessage?.(msg.id)}
+                      >
+                        <svg
+                          viewBox="0 0 24 24"
+                          width="24"
+                          height="24"
+                          aria-hidden="true"
+                        >
+                          <path
+                            d="M6 7h12M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2M10 11v6M14 11v6M8 7l1 12a1 1 0 001 1h4a1 1 0 001-1l1-12"
+                            fill="none"
+                            stroke="#9ca3af"
+                            strokeWidth="1.8"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                        <span className="message-tooltip">Delete</span>
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
