@@ -4,13 +4,15 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import "./App.css";
 import Header from "./components/Header";
 import ChannelScreen from "./components/ChannelScreen";
+import { ThemeProvider, useTheme } from "./contexts/ThemeContext";
 
-function App() {
+function AppContent() {
   const [activeSection, setActiveSection] = useState("chats"); // "chats" | "app"
+  const { theme } = useTheme();
 
   return (
     <BrowserRouter>
-      <div className="app-shell">
+      <div className={`app-shell theme-${theme}`}>
         <Header
           activeSection={activeSection}
           onChangeSection={setActiveSection}
@@ -36,6 +38,14 @@ function App() {
         </div>
       </div>
     </BrowserRouter>
+  );
+}
+
+function App() {
+  return (
+    <ThemeProvider>
+      <AppContent />
+    </ThemeProvider>
   );
 }
 

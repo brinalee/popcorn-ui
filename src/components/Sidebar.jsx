@@ -12,10 +12,12 @@ import ContextMenu from "./ContextMenu";
 import FollowDialog from "./FollowDialog";
 import Tooltip from "./Tooltip";
 import SidebarSearchBar from "./SidebarSearchBar";
+import { useTheme } from "../contexts/ThemeContext";
 
 function Sidebar({ channels, dms, activeChannelId, onSelectChannel, onStartCreateChannel }) {
   const [showMenu, setShowMenu] = useState(false);
-  const [theme, setTheme] = useState("light");
+  const { theme, setTheme } = useTheme();
+  const isDark = theme === "dark";
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showComposerMenu, setShowComposerMenu] = useState(false);
   const [showCreateDMDialog, setShowCreateDMDialog] = useState(false);
@@ -26,6 +28,7 @@ function Sidebar({ channels, dms, activeChannelId, onSelectChannel, onStartCreat
   const [contextMenu, setContextMenu] = useState(null);
   const [moveChannelMenu, setMoveChannelMenu] = useState(null);
   const [notificationsMenu, setNotificationsMenu] = useState(null);
+  const [sortSectionMenu, setSortSectionMenu] = useState(null);
   const [showFollowDialog, setShowFollowDialog] = useState(false);
   const [notificationSettings, setNotificationSettings] = useState({});
   const [sidebarSearch, setSidebarSearch] = useState("");
@@ -69,10 +72,9 @@ function Sidebar({ channels, dms, activeChannelId, onSelectChannel, onStartCreat
     };
   }, [showComposerMenu]);
 
-  const toggleTheme = (newTheme) => {
-    setTheme(newTheme);
+  const toggleTheme = () => {
+    setTheme(isDark ? "light" : "dark");
     setShowMenu(false);
-    console.log("Theme changed to:", newTheme);
   };
 
   const handleCreateDM = (name) => {
@@ -441,24 +443,36 @@ function Sidebar({ channels, dms, activeChannelId, onSelectChannel, onStartCreat
     }
 
     if (contextMenu.type === "dm") {
-      return [
+      // Check if it's a group DM (name contains comma = multiple people)
+      const isGroupDM = contextMenu.label && contextMenu.label.includes(",");
+
+      const items = [
         {
           key: "view-conv-settings",
           label: "View DM settings",
           onClick: () => console.log("View DM settings", contextMenu.id)
-        },
-        {
+        }
+      ];
+
+      // Only show "Edit notifications" for group DMs
+      if (isGroupDM) {
+        items.push({
           key: "edit-notifications",
           label: "Edit notifications",
           submenu: true
-        },
+        });
+      }
+
+      items.push(
         { key: "sep-1", isSeparator: true },
         {
           key: "unfollow-dm",
           label: "Hide",
           onClick: () => console.log("Hide DM", contextMenu.id)
         }
-      ];
+      );
+
+      return items;
     }
 
     if (contextMenu.type === "section") {
@@ -467,6 +481,11 @@ function Sidebar({ channels, dms, activeChannelId, onSelectChannel, onStartCreat
           key: "edit-section",
           label: "Edit section",
           onClick: () => console.log("Edit section", contextMenu.id)
+        },
+        {
+          key: "sort-section",
+          label: "Sort section",
+          submenu: true
         },
         {
           key: "delete-section",
@@ -561,6 +580,39 @@ function Sidebar({ channels, dms, activeChannelId, onSelectChannel, onStartCreat
         onClick: () => {
           setNotificationSettings(prev => ({ ...prev, [itemId]: "none" }));
           console.log("Set notifications: none", itemId);
+        }
+      }
+    ];
+  };
+
+  // Generate sort section submenu items
+  const getSortSectionItems = () => {
+    const sectionId = sortSectionMenu?.sectionId;
+
+    return [
+      {
+        key: "abc",
+        label: "ABC",
+        selected: true,
+        onClick: () => {
+          console.log("Sort section alphabetically", sectionId);
+          setSortSectionMenu(null);
+        }
+      },
+      {
+        key: "newest",
+        label: "Newest message",
+        onClick: () => {
+          console.log("Sort section by newest message", sectionId);
+          setSortSectionMenu(null);
+        }
+      },
+      {
+        key: "custom",
+        label: "Custom",
+        onClick: () => {
+          console.log("Sort section custom", sectionId);
+          setSortSectionMenu(null);
         }
       }
     ];
@@ -858,16 +910,16 @@ will bring it back." variant="dm">
           {showMenu && (
             <div className="workspace-menu-dropdown">
               <button
-                className="menu-item"
-                onClick={() => toggleTheme("light")}
+                className="menu-item menu-item--toggle"
+                onClick={toggleTheme}
               >
-                {theme === "light" && "✓ "}Light mode
-              </button>
-              <button
-                className="menu-item"
-                onClick={() => toggleTheme("dark")}
-              >
-                {theme === "dark" && "✓ "}Dark mode
+                <span className="menu-item-icon">🌙</span>
+                <span className="menu-item-label">Dark mode</span>
+                <span className={`menu-toggle ${isDark ? "menu-toggle--on" : ""}`}>
+                  <span className="menu-toggle-track">
+                    <span className="menu-toggle-thumb"></span>
+                  </span>
+                </span>
               </button>
             </div>
           )}
@@ -1000,17 +1052,27 @@ will bring it back." variant="dm">
                 anchorRect: rect
               });
               setNotificationsMenu(null);
+              setSortSectionMenu(null);
             } else if (item.key === "edit-notifications") {
               setNotificationsMenu({
                 itemId: contextMenu.id,
                 anchorRect: rect
               });
               setMoveChannelMenu(null);
+              setSortSectionMenu(null);
+            } else if (item.key === "sort-section" && contextMenu.type === "section") {
+              setSortSectionMenu({
+                sectionId: contextMenu.id,
+                anchorRect: rect
+              });
+              setMoveChannelMenu(null);
+              setNotificationsMenu(null);
             }
           }}
           onCloseSubmenu={() => {
             setMoveChannelMenu(null);
             setNotificationsMenu(null);
+            setSortSectionMenu(null);
           }}
         />
       )}
@@ -1032,6 +1094,16 @@ will bring it back." variant="dm">
           y={notificationsMenu.anchorRect ? notificationsMenu.anchorRect.top : 0}
           items={getNotificationItems()}
           onClose={() => setNotificationsMenu(null)}
+        />
+      )}
+
+      {/* Sort section submenu */}
+      {sortSectionMenu && (
+        <ContextMenu
+          x={sortSectionMenu.anchorRect ? sortSectionMenu.anchorRect.right + 4 : 0}
+          y={sortSectionMenu.anchorRect ? sortSectionMenu.anchorRect.top : 0}
+          items={getSortSectionItems()}
+          onClose={() => setSortSectionMenu(null)}
         />
       )}
 
