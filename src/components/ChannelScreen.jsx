@@ -50,10 +50,21 @@ function ChannelScreen() {
   const [sidebarWidth, setSidebarWidth] = useState(320);
   const [showAnimation, setShowAnimation] = useState(false);
 
+  // Ref for ChannelSettingsPage to check unsaved changes
+  const settingsRef = useRef(null);
+
   const activeChannel =
     channels.find((c) => c.id === channelId) || channels[0];
 
   const handleSelectChannel = (newChannelId) => {
+    // Guard against unsaved changes in settings
+    if (viewMode === "channel-settings" && settingsRef.current?.hasUnsavedChanges()) {
+      settingsRef.current.showUnsavedDialog({
+        type: "navigate",
+        value: newChannelId
+      });
+      return; // Block navigation
+    }
     setViewMode("channel");
     navigate(`/channel/${newChannelId}`);
   };
@@ -294,6 +305,7 @@ function ChannelScreen() {
       <main className="app-main">
         {activeChannel && viewMode === "channel-settings" ? (
           <ChannelSettingsPage
+            ref={settingsRef}
             key={activeChannel.id}
             channel={activeChannel}
             onSave={handleSaveSettings}
@@ -307,6 +319,7 @@ function ChannelScreen() {
             onToggleSidebar={handleToggleSidebar}
             onRetryReleaseNotes={handleRetryReleaseNotes}
             onDeleteMessage={handleDeleteMessage}
+            onOpenSettings={() => setViewMode("channel-settings")}
           />
         ) : null}
       </main>

@@ -69,8 +69,53 @@ The final message posted in the channel should be markdown, with the title line,
     id: "bug-triage",
     label: "Triage bugs",
     shortPrompt: "Triage every message that reports a bug or provides feedback into Linear.",
-    defaultChannelSlug: "bug-triage",
-    settingsInstructions: "Triage every message that reports a bug or provides feedback into Linear."
+    defaultChannelSlug: "bug-triaging",
+    getSettingsInstructions: () => `Treat every new message in this channel as a potential bug report or product feedback and triage it into Linear.
+
+Use data from [[knowledge:company]] (issues, projects, and labels) to keep everything in sync.
+
+When a new message is posted
+
+- Assume the message is either a bug report or product feedback.
+- Extract:
+  - A concise title
+  - A short summary
+  - Clear steps to reproduce or a description of the feedback
+  - Any expected vs. actual behaviour mentioned
+- Attach all links, screenshots, and files from the message.
+
+De-duplicating with existing Linear issues
+
+- Before creating a new issue, search existing Linear issues for similar bugs or feedback.
+- If you find a likely match:
+  - Prefer updating or linking to the existing issue instead of creating a new one.
+  - Add a comment summarising the new report and link back to this channel message.
+- If there are multiple close matches, pick the best one and ignore the rest.
+
+If it's clearly new
+
+- Create a new Linear issue in the appropriate team / project for this channel.
+- Set the assignee to the original message author when possible; otherwise leave unassigned.
+- Use the channel message as the primary source of truth:
+  - Include the original message text verbatim in the issue description.
+  - Embed or link to all relevant screenshots, logs, and files.
+  - Link back to this channel thread for full context.
+
+Ongoing conversation in the channel
+
+- If teammates reply with more details (logs, screenshots, clarifications):
+  - Append those details as comments on the same Linear issue.
+  - Avoid rewriting user messages; quote or link to them where possible.
+- Do not invent extra steps or requirements; only use information actually provided in this channel.
+
+What counts as a bug vs. feedback
+
+- Bug: Something that used to work but broke, behaves unexpectedly, or blocks a user.
+- Feedback / feature: Suggestions, UX polish, or "it would be nice if…" ideas.
+- If unsure, treat it as feedback and still create or link to an issue.
+
+These instructions are the source of truth for how this channel should triage into Linear. Users may edit this text to customise projects, labels, or assignment rules.`,
+    settingsInstructions: "Triage bugs into Linear."
   },
   "release-notes": {
     id: "release-notes",

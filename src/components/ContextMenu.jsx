@@ -77,7 +77,7 @@ function ContextMenu({ x, y, items, onClose, onOpenSubmenu, onCloseSubmenu }) {
           <button
             key={item.key}
             type="button"
-            className={`menu-item${item.danger ? " menu-item--danger" : ""}`}
+            className={`menu-item${item.danger ? " menu-item--danger" : ""}${item.selected ? " menu-item--selected" : ""}`}
             role="menuitem"
             onMouseEnter={(e) => {
               if (item.submenu && onOpenSubmenu) {
@@ -99,6 +99,7 @@ function ContextMenu({ x, y, items, onClose, onOpenSubmenu, onCloseSubmenu }) {
           >
             {item.icon && <span className="menu-icon">{item.icon}</span>}
             <span className="menu-label">{item.label}</span>
+            {item.selected && <span className="menu-checkmark">✓</span>}
             {item.submenu && <span className="menu-submenu-chevron">›</span>}
           </button>
         );

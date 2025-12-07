@@ -3,15 +3,15 @@
 export const initialSections = [
   {
     id: "sec-channels",
-    title: "Channels",
+    title: "Company",
     isCollapsed: false,
-    itemIds: ["sev-incidents", "ai-news", "all-kewl", "bug-triaging"]
+    itemIds: ["ai-news", "all-kewl", "bug-triaging", "release-notes"]
   },
   {
     id: "sec-other-channels",
-    title: "Other Channels",
+    title: "Eng-related",
     isCollapsed: true,
-    itemIds: ["daily-updates", "release-notes", "service-health"]
+    itemIds: ["sev-incidents", "daily-updates", "service-health"]
   },
   {
     id: "sec-direct-messages",

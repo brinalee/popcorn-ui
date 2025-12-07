@@ -6,6 +6,8 @@ export const channels = [
     label: "sev-incidents",
     iconType: "hash",
     pill: "Production SEV",
+    managerId: "marcus",
+    managerName: "Marcus Chen",
     messages: [
       {
         id: "sev-1",
@@ -51,6 +53,8 @@ export const channels = [
     label: "ai-news",
     iconType: "bolt", // "bolt" or "hash"
     pill: "Team updates",
+    managerId: "emma",
+    managerName: "Emma Wilson",
     messages: [
       {
         id: "ai-news-1",
@@ -82,6 +86,8 @@ export const channels = [
     label: "all-kewl",
     iconType: "hash",
     pill: "Company-wide",
+    managerId: "jordan",
+    managerName: "Jordan Lee",
     messages: [
       {
         id: "all-kewl-1",
@@ -110,6 +116,8 @@ export const channels = [
     label: "bug-triaging",
     iconType: "bolt",
     pill: "Incidents",
+    managerId: "marcus",
+    managerName: "Marcus Chen",
     messages: [
       {
         id: "bug-1",
@@ -275,6 +283,35 @@ export const channels = [
         avatarUrl: "https://i.pravatar.cc/150?img=14",
         time: "12:44pm",
         bubbles: ["yeah it basically pushed the new image and deployed automatically"]
+      },
+      {
+        id: "bug-action-1",
+        senderType: "ai",
+        messageType: "action",
+        time: "12:46pm",
+        action: {
+          type: "linear_task_created",
+          title: "Fix timeout handling in auth service",
+          url: "https://linear.app/acme/issue/ENG-1234"
+        },
+        permissionContext: {
+          type: "channel",
+          channelId: "bug-triaging",
+          managerName: "Marcus Chen"
+        }
+      },
+      {
+        id: "bug-perm-1",
+        senderType: "ai",
+        messageType: "permission_request",
+        time: "12:48pm",
+        requestedSource: {
+          id: "github",
+          name: "GitHub",
+          icon: "🐙",
+          scopes: ["read_repos", "create_issues"]
+        },
+        reason: "I need access to GitHub to create an issue for tracking this bug."
       }
     ]
   },
@@ -283,6 +320,8 @@ export const channels = [
     label: "daily-updates",
     iconType: "bolt",
     pill: "Standup",
+    managerId: "chris",
+    managerName: "Chris Taylor",
     messages: [
       {
         id: "daily-1",
@@ -304,6 +343,8 @@ export const channels = [
     label: "release-notes",
     iconType: "bolt",
     pill: "Changelog",
+    managerId: "marcus",
+    managerName: "Marcus Chen",
     messages: [
       {
         id: "release-1",
@@ -326,6 +367,8 @@ export const channels = [
     label: "service-health",
     iconType: "bolt",
     pill: "Status",
+    managerId: "jordan",
+    managerName: "Jordan Lee",
     messages: [
       {
         id: "health-1",

@@ -1,22 +1,22 @@
 // src/components/CreateChannelDialog.jsx
 import { useState, useRef, useEffect } from "react";
-import ConnectorsDialog from "./ConnectorsDialog";
+import KnowledgeKernelScreen from "./KnowledgeKernelScreen";
 
-// Helper function to split instructions around "company knowledge"
-const COMPANY_KNOWLEDGE_TOKEN = "company knowledge";
+// Helper function to split instructions around "knowledge kernels"
+const KNOWLEDGE_KERNELS_TOKEN = "knowledge kernels";
 
-function splitAroundCompanyKnowledge(text) {
-  const index = text.toLowerCase().indexOf(COMPANY_KNOWLEDGE_TOKEN);
+function splitAroundKnowledgeKernels(text) {
+  const index = text.toLowerCase().indexOf(KNOWLEDGE_KERNELS_TOKEN);
   if (index === -1) {
     return { before: text, after: "", hasToken: false };
   }
   const before = text.slice(0, index);
-  const after = text.slice(index + COMPANY_KNOWLEDGE_TOKEN.length);
+  const after = text.slice(index + KNOWLEDGE_KERNELS_TOKEN.length);
   return { before, after, hasToken: true };
 }
 
 // Default instructions for new channels
-const DEFAULT_INSTRUCTIONS = "You are a helpful assistant for this channel. When someone asks a question, use company knowledge to provide the best answer.";
+const DEFAULT_INSTRUCTIONS = "You are a helpful assistant for this channel. When someone asks a question, use knowledge kernels to provide the best answer.";
 
 // Mock members for step 2
 const mockMembers = [
@@ -36,6 +36,7 @@ function CreateChannelDialog({ isOpen, onClose, onChannelCreated }) {
   // Step 1 fields
   const [name, setName] = useState("");
   const [isPrivate, setIsPrivate] = useState(false);
+  const [showPrivateInfo, setShowPrivateInfo] = useState(true);
   const [instructions, setInstructions] = useState(DEFAULT_INSTRUCTIONS);
   const [allowMentions, setAllowMentions] = useState(true);
   const [autoChime, setAutoChime] = useState(false);
@@ -46,8 +47,8 @@ function CreateChannelDialog({ isOpen, onClose, onChannelCreated }) {
   // Sources menu state
   const [isSourcesMenuOpen, setIsSourcesMenuOpen] = useState(false);
 
-  // Connectors dialog state
-  const [isConnectorsDialogOpen, setIsConnectorsDialogOpen] = useState(false);
+  // Kernel screen state
+  const [isKernelScreenOpen, setIsKernelScreenOpen] = useState(false);
 
   // Step 2 fields
   const [selectedMembers, setSelectedMembers] = useState([]);
@@ -119,9 +120,10 @@ function CreateChannelDialog({ isOpen, onClose, onChannelCreated }) {
       setTestRunning(false);
       setTestResults(null);
       setIsSourcesMenuOpen(false);
-      setIsConnectorsDialogOpen(false);
+      setIsKernelScreenOpen(false);
       setSelectedMembers([]);
       setMemberSearch("");
+      setShowPrivateInfo(true);
     }
   }, [isOpen]);
 
@@ -202,6 +204,8 @@ function CreateChannelDialog({ isOpen, onClose, onChannelCreated }) {
             setName={setName}
             isPrivate={isPrivate}
             setIsPrivate={setIsPrivate}
+            showPrivateInfo={showPrivateInfo}
+            setShowPrivateInfo={setShowPrivateInfo}
             instructions={instructions}
             setInstructions={setInstructions}
             allowMentions={allowMentions}
@@ -223,7 +227,7 @@ function CreateChannelDialog({ isOpen, onClose, onChannelCreated }) {
             setIsSourcesMenuOpen={setIsSourcesMenuOpen}
             sourcesMenuRef={sourcesMenuRef}
             sourcesButtonRef={sourcesButtonRef}
-            setIsConnectorsDialogOpen={setIsConnectorsDialogOpen}
+            setIsKernelScreenOpen={setIsKernelScreenOpen}
           />
         ) : (
           <ChannelMembersStep
@@ -239,14 +243,10 @@ function CreateChannelDialog({ isOpen, onClose, onChannelCreated }) {
         )}
       </div>
 
-      {/* Connectors Dialog */}
-      <ConnectorsDialog
-        isOpen={isConnectorsDialogOpen}
-        onClose={() => setIsConnectorsDialogOpen(false)}
-        onConnectorClick={(connector) => {
-          console.log("Selected connector:", connector);
-          setIsConnectorsDialogOpen(false);
-        }}
+      {/* Knowledge Kernel Screen */}
+      <KnowledgeKernelScreen
+        isOpen={isKernelScreenOpen}
+        onClose={() => setIsKernelScreenOpen(false)}
       />
     </div>
   );
@@ -258,6 +258,8 @@ function ChannelDetailsStep({
   setName,
   isPrivate,
   setIsPrivate,
+  showPrivateInfo,
+  setShowPrivateInfo,
   instructions,
   setInstructions,
   allowMentions,
@@ -279,7 +281,7 @@ function ChannelDetailsStep({
   setIsSourcesMenuOpen,
   sourcesMenuRef,
   sourcesButtonRef,
-  setIsConnectorsDialogOpen,
+  setIsKernelScreenOpen,
 }) {
   return (
     <>
@@ -350,13 +352,34 @@ function ChannelDetailsStep({
               {remaining}/80
             </div>
           </div>
+
+          {/* Private channel info box */}
+          {isPrivate && showPrivateInfo && (
+            <div className="cc-private-info-box">
+              <span className="cc-private-info-icon">🔒</span>
+              <div className="cc-private-info-content">
+                <div className="cc-private-info-title">Private Channel</div>
+                <div className="cc-private-info-description">
+                  Only selected members and roles will be able to view this channel.
+                </div>
+              </div>
+              <button
+                type="button"
+                className="cc-private-info-close"
+                onClick={() => setShowPrivateInfo(false)}
+                aria-label="Dismiss"
+              >
+                ×
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Instructions */}
         <div className="cc-field-group">
           <label className="cc-field-label">Instructions</label>
           {(() => {
-            const { before, after, hasToken } = splitAroundCompanyKnowledge(instructions);
+            const { before, after, hasToken } = splitAroundKnowledgeKernels(instructions);
 
             return (
               <>
@@ -372,9 +395,15 @@ function ChannelDetailsStep({
                           onClick={() => setIsSourcesMenuOpen(!isSourcesMenuOpen)}
                         >
                           <span className="cc-inline-pill-icon" aria-hidden="true">
-                            🏠
+                            <svg viewBox="0 0 24 24" width="14" height="14">
+                              <circle cx="12" cy="12" r="3" fill="currentColor" />
+                              <circle cx="12" cy="4" r="2" fill="currentColor" />
+                              <circle cx="12" cy="20" r="2" fill="currentColor" />
+                              <circle cx="4" cy="12" r="2" fill="currentColor" />
+                              <circle cx="20" cy="12" r="2" fill="currentColor" />
+                            </svg>
                           </span>
-                          <span>Company knowledge</span>
+                          <span>Knowledge Kernel</span>
                         </button>
 
                         {isSourcesMenuOpen && (
@@ -409,7 +438,7 @@ function ChannelDetailsStep({
                               type="button"
                               onClick={() => {
                                 setIsSourcesMenuOpen(false);
-                                setIsConnectorsDialogOpen(true);
+                                setIsKernelScreenOpen(true);
                               }}
                             >
                               <span className="cc-sources-icon">⋯</span>

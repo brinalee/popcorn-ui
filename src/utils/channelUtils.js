@@ -96,8 +96,14 @@ export function createChannelFromTemplate(templateData) {
 
   // Generate instructions with webhook IDs if dynamic function provided
   let finalInstructions = instructions || "";
-  if (getSettingsInstructions && webhooks.length > 0) {
-    finalInstructions = getSettingsInstructions(webhooks[0].id);
+  if (getSettingsInstructions) {
+    // For webhook templates, pass the first webhook ID
+    // For non-webhook templates (like bug-triage), call with no args
+    if (webhooks.length > 0) {
+      finalInstructions = getSettingsInstructions(webhooks[0].id);
+    } else {
+      finalInstructions = getSettingsInstructions();
+    }
   }
 
   return {

@@ -13,6 +13,7 @@ import FollowDialog from "./FollowDialog";
 import Tooltip from "./Tooltip";
 import SidebarSearchBar from "./SidebarSearchBar";
 import { useTheme } from "../contexts/ThemeContext";
+import KnowledgeKernelScreen from "./KnowledgeKernelScreen";
 
 function Sidebar({ channels, dms, activeChannelId, onSelectChannel, onStartCreateChannel }) {
   const [showMenu, setShowMenu] = useState(false);
@@ -32,6 +33,7 @@ function Sidebar({ channels, dms, activeChannelId, onSelectChannel, onStartCreat
   const [showFollowDialog, setShowFollowDialog] = useState(false);
   const [notificationSettings, setNotificationSettings] = useState({});
   const [sidebarSearch, setSidebarSearch] = useState("");
+  const [showKernelScreen, setShowKernelScreen] = useState(false);
 
   const composerBtnRef = useRef(null);
   const composerMenuRef = useRef(null);
@@ -780,6 +782,28 @@ will bring it back." variant="dm">
         </div>
 
         <div className="workspace-header-actions">
+          {/* Knowledge Kernels button */}
+          <Tooltip text="Knowledge Kernels">
+            <button
+              type="button"
+              className="workspace-icon-btn kernel-btn"
+              aria-label="Knowledge Kernels"
+              onClick={() => setShowKernelScreen(true)}
+            >
+              <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                <circle cx="12" cy="12" r="3" fill="currentColor" />
+                <circle cx="12" cy="4" r="2" fill="currentColor" />
+                <circle cx="12" cy="20" r="2" fill="currentColor" />
+                <circle cx="4" cy="12" r="2" fill="currentColor" />
+                <circle cx="20" cy="12" r="2" fill="currentColor" />
+                <circle cx="6.34" cy="6.34" r="1.5" fill="currentColor" />
+                <circle cx="17.66" cy="6.34" r="1.5" fill="currentColor" />
+                <circle cx="6.34" cy="17.66" r="1.5" fill="currentColor" />
+                <circle cx="17.66" cy="17.66" r="1.5" fill="currentColor" />
+              </svg>
+            </button>
+          </Tooltip>
+
           {/* Composer pencil button */}
           <button
             ref={composerBtnRef}
@@ -1116,7 +1140,13 @@ will bring it back." variant="dm">
         onFollowChannel={handleFollowChannel}
         onFollowDM={handleFollowDM}
       />
-    </aside>
+
+      {/* Knowledge Kernel configuration screen */}
+      <KnowledgeKernelScreen
+        isOpen={showKernelScreen}
+        onClose={() => setShowKernelScreen(false)}
+      />
+      </aside>
   );
 }
 
