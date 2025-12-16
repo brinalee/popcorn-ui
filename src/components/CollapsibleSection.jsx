@@ -1,10 +1,19 @@
 // src/components/CollapsibleSection.jsx
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy, useSortable } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
+import SortModeDropdown from "./SortModeDropdown";
 
-function CollapsibleSection({ section, onToggle, children, dropIndicator, onContextMenu }) {
-  // Make the section itself draggable
+function CollapsibleSection({
+  section,
+  onToggle,
+  children,
+  dropIndicator,
+  onContextMenu,
+  onChangeSortMode,
+  onOpenMenu,
+  sortedItemIds
+}) {
+  // Make the section itself draggable (except Uncategorized which stays at top)
   const {
     attributes,
     listeners,
@@ -16,7 +25,8 @@ function CollapsibleSection({ section, onToggle, children, dropIndicator, onCont
     id: section.id,
     data: {
       type: "section"
-    }
+    },
+    disabled: section.id === "uncategorized"  // Prevent dragging Uncategorized
   });
 
   // Make the section a drop target for items
@@ -30,6 +40,17 @@ function CollapsibleSection({ section, onToggle, children, dropIndicator, onCont
 
   const style = {
     opacity: isDragging ? 0.5 : 1
+  };
+
+  // Handle sort mode change
+  const handleSortModeChange = (mode) => {
+    onChangeSortMode?.(section.id, mode);
+  };
+
+  // Handle menu button click
+  const handleMenuClick = (e) => {
+    e.stopPropagation();
+    onOpenMenu?.(e, section);
   };
 
   // Helper to render items with drop lines
@@ -69,44 +90,76 @@ function CollapsibleSection({ section, onToggle, children, dropIndicator, onCont
     return result;
   };
 
-  return (
-    <div ref={setSortableRef} style={style} className="sidebar-section">
-      <button
-        type="button"
-        className="sidebar-section-header"
-        onClick={onToggle}
-        onContextMenu={(e) => {
-          e.preventDefault();
-          if (onContextMenu) {
-            onContextMenu(e, section);
-          }
-        }}
-        {...attributes}
-        {...listeners}
-      >
-        <span className="sidebar-section-title">{section.title}</span>
-        <span
-          className={`sidebar-section-chevron ${
-            section.isCollapsed ? "sidebar-section-chevron--collapsed" : ""
-          }`}
-        >
-          <svg viewBox="0 0 24 24" width="14" height="14">
-            <path
-              d="M9 18l6-6-6-6"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </span>
-      </button>
+  // Use sortedItemIds if provided, otherwise fall back to section.itemIds
+  const itemIdsForContext = sortedItemIds || section.itemIds;
 
-      {!section.isCollapsed && (
+  // Hide header for Uncategorized section
+  const isUncategorized = section.id === "uncategorized";
+
+  return (
+    <div ref={setSortableRef} style={style} className={`sidebar-section ${isUncategorized ? "sidebar-section--no-header" : ""}`}>
+      {!isUncategorized && (
+        <div
+          className="sidebar-section-header"
+          onClick={onToggle}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            if (onContextMenu) {
+              onContextMenu(e, section);
+            }
+          }}
+          {...attributes}
+          {...listeners}
+        >
+          {/* Section title (no longer editable inline) */}
+          <span className="sidebar-section-title">
+            {section.title}
+          </span>
+
+          {/* Sort mode dropdown */}
+          <SortModeDropdown
+            mode={section.sortMode || "manual"}
+            onChange={handleSortModeChange}
+            disabled={false}
+          />
+
+          {/* Menu button (only for non-protected sections) */}
+          {!section.isProtected && (
+            <button
+              type="button"
+              className="sidebar-section-menu-btn"
+              onClick={handleMenuClick}
+              onMouseDown={(e) => e.stopPropagation()}
+              aria-label="Section menu"
+            >
+              ...
+            </button>
+          )}
+
+          {/* Collapse chevron */}
+          <span
+            className={`sidebar-section-chevron ${
+              section.isCollapsed ? "sidebar-section-chevron--collapsed" : ""
+            }`}
+          >
+            <svg viewBox="0 0 24 24" width="14" height="14">
+              <path
+                d="M9 18l6-6-6-6"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </span>
+        </div>
+      )}
+
+      {(!section.isCollapsed || isUncategorized) && (
         <SortableContext
           id={section.id}
-          items={section.itemIds}
+          items={itemIdsForContext}
           strategy={verticalListSortingStrategy}
         >
           <div ref={setDroppableRef} className="sidebar-section-items">

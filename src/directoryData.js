@@ -1,29 +1,32 @@
 // src/directoryData.js
 // Master directory of ALL channels and DMs available in the product
 
+const now = Date.now();
+const day = 86400000; // milliseconds in a day
+
 export const channelDirectory = [
   // Currently followed channels (from mockData.js)
-  { id: "sev-incidents", label: "sev-incidents", iconType: "hash" },
-  { id: "ai-news", label: "ai-news", iconType: "bolt" },
-  { id: "all-kewl", label: "all-kewl", iconType: "hash" },
-  { id: "bug-triaging", label: "bug-triaging", iconType: "bolt" },
-  { id: "daily-updates", label: "daily-updates", iconType: "bolt" },
-  { id: "release-notes", label: "release-notes", iconType: "bolt" },
-  { id: "service-health", label: "service-health", iconType: "bolt" },
+  { id: "sev-incidents", label: "sev-incidents", iconType: "hash", lastMessageAt: now - 1800000, createdAt: now - 30 * day },
+  { id: "ai-news", label: "ai-news", iconType: "bolt", lastMessageAt: now - 300000, createdAt: now - 7 * day },
+  { id: "all-kewl", label: "all-kewl", iconType: "hash", lastMessageAt: now - 7200000, createdAt: now - 90 * day },
+  { id: "bug-triaging", label: "bug-triaging", iconType: "bolt", lastMessageAt: now - 900000, createdAt: now - 60 * day },
+  { id: "daily-updates", label: "daily-updates", iconType: "bolt", lastMessageAt: now - 3600000, createdAt: now - 120 * day },
+  { id: "release-notes", label: "release-notes", iconType: "bolt", lastMessageAt: now - 86400000, createdAt: now - 2 * day },
+  { id: "service-health", label: "service-health", iconType: "bolt", lastMessageAt: now - 600000, createdAt: now - 45 * day },
 
   // Additional unfollowed channels
-  { id: "design-reviews", label: "design-reviews", iconType: "hash" },
-  { id: "infrastructure", label: "infrastructure", iconType: "bolt" },
-  { id: "marketing", label: "marketing", iconType: "hash" },
-  { id: "customer-feedback", label: "customer-feedback", iconType: "hash" },
-  { id: "team-events", label: "team-events", iconType: "hash" },
-  { id: "engineering", label: "engineering", iconType: "bolt" },
-  { id: "product-updates", label: "product-updates", iconType: "bolt" },
-  { id: "onboarding", label: "onboarding", iconType: "hash" },
-  { id: "security-alerts", label: "security-alerts", iconType: "bolt" },
-  { id: "sales", label: "sales", iconType: "hash" },
-  { id: "support", label: "support", iconType: "hash" },
-  { id: "random", label: "random", iconType: "hash" },
+  { id: "design-reviews", label: "design-reviews", iconType: "hash", lastMessageAt: now - 5400000, createdAt: now - 14 * day },
+  { id: "infrastructure", label: "infrastructure", iconType: "bolt", lastMessageAt: now - 10800000, createdAt: now - 180 * day },
+  { id: "marketing", label: "marketing", iconType: "hash", lastMessageAt: now - 14400000, createdAt: now - 200 * day },
+  { id: "customer-feedback", label: "customer-feedback", iconType: "hash", lastMessageAt: now - 21600000, createdAt: now - 21 * day },
+  { id: "team-events", label: "team-events", iconType: "hash", lastMessageAt: now - 172800000, createdAt: now - 365 * day },
+  { id: "engineering", label: "engineering", iconType: "bolt", lastMessageAt: now - 1200000, createdAt: now - 400 * day },
+  { id: "product-updates", label: "product-updates", iconType: "bolt", lastMessageAt: now - 43200000, createdAt: now - 1 * day },
+  { id: "onboarding", label: "onboarding", iconType: "hash", lastMessageAt: now - 259200000, createdAt: now - 300 * day },
+  { id: "security-alerts", label: "security-alerts", iconType: "bolt", lastMessageAt: now - 120000, createdAt: now - 3 * day },
+  { id: "sales", label: "sales", iconType: "hash", lastMessageAt: now - 28800000, createdAt: now - 150 * day },
+  { id: "support", label: "support", iconType: "hash", lastMessageAt: now - 2400000, createdAt: now - 100 * day },
+  { id: "random", label: "random", iconType: "hash", lastMessageAt: now - 60000, createdAt: now - 500 * day },
 ];
 
 export const dmDirectory = [
@@ -34,7 +37,9 @@ export const dmDirectory = [
     initials: "M",
     avatarColor: "gray",
     avatarUrl: "https://i.pravatar.cc/150?img=60",
-    status: "online"
+    status: "online",
+    lastMessageAt: now - 180000,
+    createdAt: now - 14 * day
   },
   {
     id: "dm-2",
@@ -42,7 +47,9 @@ export const dmDirectory = [
     initials: "E",
     avatarColor: "green",
     avatarUrl: "https://i.pravatar.cc/150?img=47",
-    status: "online"
+    status: "online",
+    lastMessageAt: now - 3600000,
+    createdAt: now - 30 * day
   },
   {
     id: "dm-3",
@@ -50,7 +57,9 @@ export const dmDirectory = [
     initials: "J",
     avatarColor: "red",
     avatarUrl: "https://i.pravatar.cc/150?img=15",
-    status: "online"
+    status: "online",
+    lastMessageAt: now - 7200000,
+    createdAt: now - 60 * day
   },
   {
     id: "dm-4",
@@ -58,7 +67,9 @@ export const dmDirectory = [
     initials: "C",
     avatarColor: "gray",
     avatarUrl: "https://i.pravatar.cc/150?img=14",
-    status: "away"
+    status: "away",
+    lastMessageAt: now - 600000,
+    createdAt: now - 7 * day
   },
 
   // Additional unfollowed DMs
@@ -68,7 +79,9 @@ export const dmDirectory = [
     initials: "S",
     avatarColor: "blue",
     avatarUrl: "https://i.pravatar.cc/150?img=20",
-    status: "online"
+    status: "online",
+    lastMessageAt: now - 1800000,
+    createdAt: now - 3 * day
   },
   {
     id: "dm-6",
@@ -76,7 +89,9 @@ export const dmDirectory = [
     initials: "D",
     avatarColor: "purple",
     avatarUrl: "https://i.pravatar.cc/150?img=25",
-    status: "online"
+    status: "online",
+    lastMessageAt: now - 300000,
+    createdAt: now - 1 * day
   },
   {
     id: "dm-7",
@@ -84,7 +99,9 @@ export const dmDirectory = [
     initials: "P",
     avatarColor: "orange",
     avatarUrl: "https://i.pravatar.cc/150?img=30",
-    status: "away"
+    status: "away",
+    lastMessageAt: now - 14400000,
+    createdAt: now - 45 * day
   },
   {
     id: "dm-8",
@@ -92,7 +109,9 @@ export const dmDirectory = [
     initials: "T",
     avatarColor: "gray",
     avatarUrl: "https://i.pravatar.cc/150?img=35",
-    status: "online"
+    status: "online",
+    lastMessageAt: now - 43200000,
+    createdAt: now - 90 * day
   },
   {
     id: "dm-9",
@@ -100,7 +119,9 @@ export const dmDirectory = [
     initials: "D",
     avatarColor: "pink",
     avatarUrl: "https://i.pravatar.cc/150?img=40",
-    status: "away"
+    status: "away",
+    lastMessageAt: now - 86400000,
+    createdAt: now - 21 * day
   },
   {
     id: "dm-10",
@@ -108,6 +129,8 @@ export const dmDirectory = [
     initials: "A",
     avatarColor: "gray",
     avatarUrl: "https://i.pravatar.cc/150?img=45",
-    status: "online"
+    status: "online",
+    lastMessageAt: now - 120000,
+    createdAt: now - 2 * day
   },
 ];

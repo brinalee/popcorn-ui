@@ -203,10 +203,11 @@ function CreateChannelIntentModal({ onCancel, onCreateFromPrompt, onCreateBlank,
     }
   };
 
-  // Create channel with the given member IDs
+  // Create channel with the given member IDs - closes modal immediately
   const handleCreateWithMembers = (memberIds) => {
+    // Close modal immediately and navigate to settings with pendingSetup flag
     if (isBlankChannel) {
-      onCreateBlank(isPrivate, memberIds);
+      onCreateBlank(isPrivate, memberIds, { pendingSetup: true });
     } else if (selectedTemplateId && CHANNEL_TEMPLATES[selectedTemplateId]) {
       const template = CHANNEL_TEMPLATES[selectedTemplateId];
       onCreateFromTemplate({
@@ -218,11 +219,12 @@ function CreateChannelIntentModal({ onCancel, onCreateFromPrompt, onCreateBlank,
         memberIds,
         initialWebhooks: template.initialWebhooks || [],
         getSettingsInstructions: template.getSettingsInstructions || null,
+        pendingSetup: true,
       });
     } else if (hasText) {
-      onCreateFromPrompt(prompt, isPrivate, memberIds);
+      onCreateFromPrompt(prompt, isPrivate, memberIds, { pendingSetup: true });
     } else {
-      onCreateBlank(isPrivate, memberIds);
+      onCreateBlank(isPrivate, memberIds, { pendingSetup: true });
     }
   };
 
@@ -260,7 +262,7 @@ function CreateChannelIntentModal({ onCancel, onCreateFromPrompt, onCreateBlank,
     return (
       <div className="cc-modal-overlay" onClick={onCancel}>
         <div
-          className="cc-modal"
+          className="cc-modal create-channel-modal"
           onClick={(e) => e.stopPropagation()}
           role="dialog"
           aria-modal="true"
@@ -387,7 +389,7 @@ function CreateChannelIntentModal({ onCancel, onCreateFromPrompt, onCreateBlank,
   return (
     <div className="cc-modal-overlay" onClick={onCancel}>
       <div
-        className="cc-modal"
+        className="cc-modal create-channel-modal"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
@@ -477,7 +479,7 @@ function CreateChannelIntentModal({ onCancel, onCreateFromPrompt, onCreateBlank,
                 setIsBlankChannel(true);
                 setStep(2);
               } else {
-                onCreateBlank(false, []);
+                onCreateBlank(false, [], { pendingSetup: true });
               }
             }}
           >

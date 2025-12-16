@@ -1,5 +1,5 @@
 // src/components/ChatWindow.jsx
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import ReactionBar from "./ReactionBar";
 import EmojiPickerPanel from "./EmojiPickerPanel";
@@ -7,7 +7,10 @@ import ReactionPill from "./ReactionPill";
 import ReplySummaryRow from "./ReplySummaryRow";
 import InlineFormattingToolbar from "./InlineFormattingToolbar";
 import ActionMenu from "./ActionMenu";
+import PopcornMessageBubble from "./PopcornMessageBubble";
+import { usePopcornGeneration } from "../hooks/usePopcornGeneration";
 import { threads } from "../mockData";
+import { dmDirectory } from "../directoryData";
 
 // Prism.js for syntax highlighting
 import Prism from "prismjs";
@@ -103,6 +106,10 @@ function ChatWindow({ channel, threadId = null, showSidebarToggle = false, onTog
   const navigate = useNavigate();
   const { channelId } = useParams();
 
+  // Check if this is a DM (id starts with "dm-")
+  const isDM = channelId?.startsWith("dm-");
+  const dmData = isDM ? dmDirectory.find(dm => dm.id === channelId) : null;
+
   // Determine if we're in thread mode and get the appropriate messages
   let thread = threadId ? threads.find(t => t.id === threadId) : null;
 
@@ -137,6 +144,20 @@ function ChatWindow({ channel, threadId = null, showSidebarToggle = false, onTog
   const [attachments, setAttachments] = useState([]);
   const [toolbarVisible, setToolbarVisible] = useState(false);
   const [toolbarPos, setToolbarPos] = useState({ top: 0, left: 0 });
+
+  // Popcorn AI generation state
+  const {
+    activeMessage: popcornMessage,
+    startThinking,
+    startGenerating,
+    appendText,
+    stop: stopGeneration,
+    complete: completeGeneration,
+    completeWithMessage,
+    retry: retryGeneration,
+    isGenerationValid,
+  } = usePopcornGeneration();
+
   const textareaRef = useRef(null);
   const reactionBarRef = useRef(null);
   const emojiPickerRef = useRef(null);
@@ -170,6 +191,56 @@ function ChatWindow({ channel, threadId = null, showSidebarToggle = false, onTog
       }, 100);
     }
   };
+
+  // Helper for async delays
+  const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+  // Simulate Popcorn AI response (demo function)
+  // New UX: No streaming - show thinking row, then reveal full message instantly
+  const simulatePopcornResponse = useCallback(async () => {
+    // Start thinking phase
+    const generationId = startThinking();
+    scrollToBottom(true);
+
+    // Long thinking time (~30 seconds) to demo verb rotation
+    const thinkingTime = 30000 + Math.random() * 2000;
+    await sleep(thinkingTime);
+
+    // Check if generation was cancelled
+    if (!isGenerationValid(generationId)) return;
+
+    // Full response text (no streaming - reveal all at once)
+    const fullResponse = "I found some relevant information about that. Here's what I discovered:\n\n**Key findings:**\n- The issue appears to be related to the authentication flow\n- There's a race condition in the token refresh logic\n- This was introduced in the recent v2.3.0 release\n\nLet me know if you'd like me to create a Linear ticket for this!";
+
+    // Complete instantly with full message (skip streaming)
+    const finalText = completeWithMessage(fullResponse);
+    if (finalText) {
+      setLocalMessages(prev => [...prev, {
+        id: `ai-${Date.now()}`,
+        senderType: 'ai',
+        author: '@popcorn',
+        timestamp: new Date().toISOString(),
+        bubbles: [finalText],
+        canRetry: true, // Enable retry button below message
+      }]);
+      setTimeout(() => scrollToBottom(true), 50);
+    }
+  }, [startThinking, completeWithMessage, isGenerationValid]);
+
+  // Keyboard shortcut: Ctrl+Shift+P to trigger Popcorn demo
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.ctrlKey && e.shiftKey && e.key === 'P') {
+        e.preventDefault();
+        // Don't start if already generating
+        if (!popcornMessage) {
+          simulatePopcornResponse();
+        }
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [simulatePopcornResponse, popcornMessage]);
 
   // Whenever the channel or thread changes, sync local messages and scroll to bottom:
   useEffect(() => {
@@ -547,6 +618,45 @@ function ChatWindow({ channel, threadId = null, showSidebarToggle = false, onTog
     navigate(`/channel/${channelId}`);
   };
 
+  // If this is a DM, render a special DM view
+  if (isDM && dmData) {
+    return (
+      <main className="main">
+        {/* Top bar for DM */}
+        <header className="top-bar">
+          <div className="top-bar-title">
+            {showSidebarToggle && (
+              <button
+                type="button"
+                className="sidebar-toggle-btn"
+                onClick={onToggleSidebar}
+                aria-label="Pin sidebar"
+              >
+                <SidebarToggleIcon />
+              </button>
+            )}
+            <div className={`avatar avatar-small ${dmData.avatarColor || 'gray'}`}>
+              {dmData.avatarUrl ? (
+                <img src={dmData.avatarUrl} alt={dmData.name} />
+              ) : (
+                dmData.initials || "?"
+              )}
+            </div>
+            <span>{dmData.name}</span>
+          </div>
+        </header>
+
+        {/* DM placeholder content */}
+        <div className="dm-placeholder-content">
+          <div className="dm-placeholder-message">
+            <p>Direct message with {dmData.name}</p>
+            <p className="dm-placeholder-hint">Messages would appear here.</p>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="main">
       {/* Top bar */}
@@ -768,6 +878,7 @@ function ChatWindow({ channel, threadId = null, showSidebarToggle = false, onTog
                       onReplyClick={handleReplyClick}
                       onRetryReleaseNotes={onRetryReleaseNotes}
                       onDeleteMessage={onDeleteMessage}
+                      onRetryPopcorn={simulatePopcornResponse}
                       reactButtonRefs={reactButtonRefs}
                       reactionBarRef={reactionBarRef}
                       emojiPickerRef={emojiPickerRef}
@@ -799,6 +910,7 @@ function ChatWindow({ channel, threadId = null, showSidebarToggle = false, onTog
                     onReplyClick={handleReplyClick}
                     onRetryReleaseNotes={onRetryReleaseNotes}
                     onDeleteMessage={onDeleteMessage}
+                    onRetryPopcorn={simulatePopcornResponse}
                     reactButtonRefs={reactButtonRefs}
                     reactionBarRef={reactionBarRef}
                     emojiPickerRef={emojiPickerRef}
@@ -813,6 +925,26 @@ function ChatWindow({ channel, threadId = null, showSidebarToggle = false, onTog
               </React.Fragment>
             );
           })}
+
+          {/* Popcorn AI generation bubble - appears inline at bottom */}
+          {popcornMessage && (
+            <div className="message-group ai popcorn-generation-row">
+              <div className="msg-avatar-column" />
+              <div className="msg-content">
+                <div className="msg-meta">
+                  <span className="msg-name">@popcorn</span>
+                </div>
+                <PopcornMessageBubble
+                  message={popcornMessage}
+                  onStop={stopGeneration}
+                  onRetry={() => {
+                    retryGeneration();
+                    simulatePopcornResponse();
+                  }}
+                />
+              </div>
+            </div>
+          )}
         </div>
       </section>
 
@@ -1384,6 +1516,7 @@ function MessageGroup({
   onReplyClick,
   onRetryReleaseNotes,
   onDeleteMessage,
+  onRetryPopcorn,
   reactButtonRefs,
   reactionBarRef,
   emojiPickerRef,
@@ -1928,6 +2061,36 @@ function MessageGroup({
               </div>
             );
           })}
+
+          {/* Retry button row for AI messages with canRetry flag */}
+          {msg.canRetry && onRetryPopcorn && (
+            <div className="message-retry-row">
+              <button
+                type="button"
+                className="message-retry-btn"
+                onClick={onRetryPopcorn}
+              >
+                <svg width="14" height="14" viewBox="0 0 18 18" fill="none">
+                  <path
+                    d="M16.25 3.25L15.71 6.25C14.627 3.61 12.031 1.75 9 1.75C4.996 1.75 1.75 5 1.75 9C1.75 13 4.996 16.25 9 16.25C12.9365 16.25 16.1404 13.1087 16.2472 9.20166"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d="M11.652 8.56989L8.00102 6.43988C7.66802 6.24998 7.24902 6.48984 7.24902 6.86994V11.1299C7.24902 11.5199 7.66802 11.7599 8.00102 11.56L11.652 9.42999C11.983 9.23989 11.983 8.75999 11.652 8.56989Z"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+                Retry
+              </button>
+            </div>
+          )}
+
           {msg.replySummary && !hideReplySummary && <ReplySummaryRow replySummary={msg.replySummary} />}
         </div>
       </div>

@@ -1,14 +1,18 @@
 // src/components/ChannelSettingsPage.jsx
-import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from "react";
+import { useState, useRef, useEffect, forwardRef, useImperativeHandle, useCallback } from "react";
 import KnowledgeKernelScreen from "./KnowledgeKernelScreen";
 import WebhookActivityModal from "./WebhookActivityModal";
 import KernelModal from "./KernelModal";
+import CreationSnackbar from "./CreationSnackbar";
+import { useChannelCreation, CreationState } from "../hooks/useChannelCreation";
 import {
   getWorkspaceKernel,
   getChannelKernelSettings,
   updateChannelKernelSettings,
+  updateChannelSourceScope,
 } from "../utils/kernelData";
 import { CONNECTORS, CONNECTOR_ICON_URLS } from "../utils/companyKnowledgeData";
+import { getSourceResources, getResourceConfig, getResourceSecondaryInfo } from "../utils/kernelScopeData";
 
 // Generate unique ID
 const generateId = () => `node_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
@@ -155,7 +159,10 @@ const getWebhookModeDisplay = (mode) => {
 };
 
 
-const ChannelSettingsPage = forwardRef(function ChannelSettingsPage({ channel, onSave, onCancel }, ref) {
+const ChannelSettingsPage = forwardRef(function ChannelSettingsPage(
+  { channel, onSave, onCancel, pendingSetup, onSetupComplete, onSetupCancel },
+  ref
+) {
   // Tab state
   const [activeTab, setActiveTab] = useState("overview");
 
@@ -171,6 +178,60 @@ const ChannelSettingsPage = forwardRef(function ChannelSettingsPage({ channel, o
   const [instructionsNodes, setInstructionsNodes] = useState(() =>
     parseInstructions(channel?.instructions || "", channel?.webhooks || [])
   );
+
+  // Channel creation loading state
+  const {
+    creationState,
+    loadingMessage,
+    errorMessage,
+    elapsedSeconds,
+    isLoading,
+    isError,
+    startCreation,
+    setSuccess,
+    setError,
+    reset,
+  } = useChannelCreation();
+
+  const [setupCancelled, setSetupCancelled] = useState(false);
+
+  // Helper for simulated delay
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  // Run channel setup when pendingSetup arrives
+  const runChannelSetup = useCallback(async () => {
+    startCreation();
+
+    // Simulate AI processing (~30 seconds for demo)
+    await sleep(30000);
+
+    // Simulate success (toggle to false to test error state)
+    const shouldSucceed = true;
+    if (shouldSucceed) {
+      setSuccess();
+      onSetupComplete?.();
+    } else {
+      setError("Network timeout while generating instructions.");
+    }
+  }, [startCreation, setSuccess, setError, onSetupComplete]);
+
+  useEffect(() => {
+    if (pendingSetup && creationState === CreationState.IDLE) {
+      runChannelSetup();
+    }
+  }, [pendingSetup, creationState, runChannelSetup]);
+
+  const handleRetrySetup = () => {
+    runChannelSetup();
+  };
+
+  const handleCancelSetup = () => {
+    reset();
+    setSetupCancelled(true);
+    onSetupCancel?.();
+  };
+
+  const isDisabled = isLoading || isError;
 
   // Initial values for change detection
   const [initialName] = useState(channel?.name || "");
@@ -208,14 +269,20 @@ const ChannelSettingsPage = forwardRef(function ChannelSettingsPage({ channel, o
   // Webhook mode dropdown state
   const [openDropdownId, setOpenDropdownId] = useState(null);
 
-  // Sources dropdown state
-  const [isSourcesMenuOpen, setIsSourcesMenuOpen] = useState(false);
-  const [isLinearSourcesMenuOpen, setIsLinearSourcesMenuOpen] = useState(false);
+  // Sources dropdown state - stores node ID of open menu, or null if closed
+  const [openSourcesMenuId, setOpenSourcesMenuId] = useState(null);
+  const [openLinearSourcesMenuId, setOpenLinearSourcesMenuId] = useState(null);
   const sourcesMenuRef = useRef(null);
   const sourcesPillRef = useRef(null);
   const linearSourcesMenuRef = useRef(null);
   const linearSourcesPillRef = useRef(null);
 
+  // Scope submenu state (for granular resource selection)
+  const [activeScopeSubmenu, setActiveScopeSubmenu] = useState(null); // sourceId
+  const [scopeSubmenuRect, setScopeSubmenuRect] = useState(null);
+  const [scopeSearchQuery, setScopeSearchQuery] = useState("");
+  const scopeSubmenuRef = useRef(null);
+  const scopeHoverTimeoutRef = useRef(null);
 
   // Connectors dialog state
   const [isKernelScreenOpen, setIsKernelScreenOpen] = useState(false);
@@ -273,6 +340,128 @@ const ChannelSettingsPage = forwardRef(function ChannelSettingsPage({ channel, o
     };
     setKernelSettings(newSettings);
     updateChannelKernelSettings(channel?.id, newSettings);
+  };
+
+  // Scope submenu handlers
+  const handleShowScopeSubmenu = (sourceId, rect) => {
+    if (scopeHoverTimeoutRef.current) {
+      clearTimeout(scopeHoverTimeoutRef.current);
+    }
+    scopeHoverTimeoutRef.current = setTimeout(() => {
+      setActiveScopeSubmenu(sourceId);
+      setScopeSubmenuRect(rect);
+      setScopeSearchQuery("");
+    }, 200);
+  };
+
+  const handleHideScopeSubmenu = () => {
+    if (scopeHoverTimeoutRef.current) {
+      clearTimeout(scopeHoverTimeoutRef.current);
+    }
+    scopeHoverTimeoutRef.current = setTimeout(() => {
+      setActiveScopeSubmenu(null);
+      setScopeSubmenuRect(null);
+      setScopeSearchQuery("");
+    }, 150);
+  };
+
+  const handleScopeSubmenuEnter = () => {
+    if (scopeHoverTimeoutRef.current) {
+      clearTimeout(scopeHoverTimeoutRef.current);
+    }
+  };
+
+  const handleScopeSubmenuLeave = () => {
+    handleHideScopeSubmenu();
+  };
+
+  // Toggle a resource in the scope
+  const handleToggleScopeResource = (sourceId, resourceId) => {
+    const currentScope = kernelSettings.sourceScopes?.[sourceId] || { mode: "all", selectedIds: [] };
+    let newSelectedIds;
+
+    if (currentScope.mode === "all") {
+      // Switching from "all" to "selected" - start with just this resource
+      const allResources = getSourceResources(sourceId);
+      newSelectedIds = allResources
+        .filter(r => r.id !== resourceId)
+        .map(r => r.id);
+    } else {
+      // Toggle the resource in selectedIds
+      if (currentScope.selectedIds.includes(resourceId)) {
+        newSelectedIds = currentScope.selectedIds.filter(id => id !== resourceId);
+      } else {
+        newSelectedIds = [...currentScope.selectedIds, resourceId];
+      }
+    }
+
+    const newScope = {
+      mode: "selected",
+      selectedIds: newSelectedIds,
+    };
+
+    // If all resources are selected, switch back to "all" mode
+    const allResources = getSourceResources(sourceId);
+    if (newSelectedIds.length === allResources.length) {
+      newScope.mode = "all";
+      newScope.selectedIds = [];
+    }
+
+    const newSettings = {
+      ...kernelSettings,
+      sourceScopes: {
+        ...kernelSettings.sourceScopes,
+        [sourceId]: newScope,
+      },
+    };
+    setKernelSettings(newSettings);
+    updateChannelSourceScope(channel?.id, sourceId, newScope);
+  };
+
+  // Check if a resource is selected
+  const isResourceSelected = (sourceId, resourceId) => {
+    const scope = kernelSettings.sourceScopes?.[sourceId];
+    if (!scope || scope.mode === "all") return true;
+    return scope.selectedIds.includes(resourceId);
+  };
+
+  // Get scope display label for a source
+  const getScopeCountLabel = (sourceId) => {
+    const scope = kernelSettings.sourceScopes?.[sourceId];
+    if (!scope || scope.mode === "all") return null;
+    const count = scope.selectedIds.length;
+    if (count === 0) return null;
+    const config = getResourceConfig(sourceId);
+    return `${count} ${count === 1 ? config.singularLabel : config.pluralLabel}`;
+  };
+
+  // Get overall scope label for the pill
+  const getPillScopeLabel = () => {
+    const sourceScopes = kernelSettings.sourceScopes || {};
+    const enabledSources = workspaceKernel.sourceIds.filter(
+      id => !kernelSettings.disabledSources?.includes(id)
+    );
+
+    const scopedSources = enabledSources.filter(sourceId => {
+      const scope = sourceScopes[sourceId];
+      return scope && scope.mode === "selected" && scope.selectedIds.length > 0;
+    });
+
+    if (scopedSources.length === 0) return null;
+
+    if (scopedSources.length === 1) {
+      const sourceId = scopedSources[0];
+      const scope = sourceScopes[sourceId];
+      const config = getResourceConfig(sourceId);
+      const count = scope.selectedIds.length;
+      return `${count} ${count === 1 ? config.singularLabel : config.pluralLabel}`;
+    }
+
+    // Multiple sources have custom scope
+    const totalCount = scopedSources.reduce((sum, sourceId) => {
+      return sum + (sourceScopes[sourceId]?.selectedIds?.length || 0);
+    }, 0);
+    return `${totalCount} items`;
   };
 
   // Handle Kernel screen close - refresh state and auto-disable new sources
@@ -379,23 +568,22 @@ const ChannelSettingsPage = forwardRef(function ChannelSettingsPage({ channel, o
 
   // Sources menu click-outside handling
   useEffect(() => {
-    if (!isSourcesMenuOpen) return;
+    if (!openSourcesMenuId) return;
 
     function handleClickOutside(event) {
       const target = event.target;
       if (
         sourcesMenuRef.current &&
         !sourcesMenuRef.current.contains(target) &&
-        sourcesPillRef.current &&
-        !sourcesPillRef.current.contains(target)
+        !target.closest('.instr-pill--knowledge')
       ) {
-        setIsSourcesMenuOpen(false);
+        setOpenSourcesMenuId(null);
       }
     }
 
     function handleKeyDown(event) {
       if (event.key === "Escape") {
-        setIsSourcesMenuOpen(false);
+        setOpenSourcesMenuId(null);
       }
     }
 
@@ -405,27 +593,26 @@ const ChannelSettingsPage = forwardRef(function ChannelSettingsPage({ channel, o
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isSourcesMenuOpen]);
+  }, [openSourcesMenuId]);
 
   // Linear sources menu click-outside handling
   useEffect(() => {
-    if (!isLinearSourcesMenuOpen) return;
+    if (!openLinearSourcesMenuId) return;
 
     function handleClickOutside(event) {
       const target = event.target;
       if (
         linearSourcesMenuRef.current &&
         !linearSourcesMenuRef.current.contains(target) &&
-        linearSourcesPillRef.current &&
-        !linearSourcesPillRef.current.contains(target)
+        !target.closest('.instr-pill--linear')
       ) {
-        setIsLinearSourcesMenuOpen(false);
+        setOpenLinearSourcesMenuId(null);
       }
     }
 
     function handleKeyDown(event) {
       if (event.key === "Escape") {
-        setIsLinearSourcesMenuOpen(false);
+        setOpenLinearSourcesMenuId(null);
       }
     }
 
@@ -435,7 +622,7 @@ const ChannelSettingsPage = forwardRef(function ChannelSettingsPage({ channel, o
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isLinearSourcesMenuOpen]);
+  }, [openLinearSourcesMenuId]);
 
   // Mention popover click-outside and escape handling
   useEffect(() => {
@@ -534,6 +721,69 @@ const ChannelSettingsPage = forwardRef(function ChannelSettingsPage({ channel, o
                 sourceKind: "webhook",
                 webhookId: wh.id,
                 label: `Webhooks: ${wh.name}`,
+              };
+
+              const beforeText = before;
+              const afterText = after;
+              const newNodes = [...nodes];
+
+              // Replace target with: before text, pill, after text
+              const replacement = [];
+              if (beforeText) {
+                replacement.push({ id: nodeId, type: "text", text: beforeText });
+              }
+              replacement.push(pill);
+              if (afterText) {
+                replacement.push({ id: generateId(), type: "text", text: afterText });
+              }
+
+              newNodes.splice(idx, 1, ...replacement);
+              return newNodes;
+            });
+          }
+        }
+      }
+    }
+
+    // Close mention popover
+    setMention({ active: false, query: "", anchorRect: null, showSubmenu: false, submenuRect: null });
+  };
+
+  // Handle kernel selection from mention popover (inserts @kernel pill)
+  const handleSelectKernel = () => {
+    // Remove the @kernel text from the current text node and insert pill
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount > 0) {
+      const range = selection.getRangeAt(0);
+      const textNode = range.startContainer;
+
+      if (textNode.nodeType === Node.TEXT_NODE) {
+        const text = textNode.textContent || "";
+        const cursorPos = range.startOffset;
+
+        // Find the @ symbol before cursor
+        let atIndex = text.lastIndexOf("@", cursorPos - 1);
+        if (atIndex === -1) atIndex = text.lastIndexOf("@");
+
+        if (atIndex !== -1) {
+          // Remove @kernel from text
+          const before = text.slice(0, atIndex);
+          const after = text.slice(cursorPos);
+          textNode.textContent = before + after;
+
+          // Find which node this is and update state with pill insertion
+          const nodeId = textNode.parentElement?.dataset?.nodeId;
+          if (nodeId) {
+            setInstructionsNodes((nodes) => {
+              const idx = nodes.findIndex((n) => n.id === nodeId);
+              if (idx === -1) return nodes;
+
+              const pill = {
+                id: generateId(),
+                type: "source-pill",
+                sourceKind: "knowledge",
+                knowledgeType: "company",
+                label: "Your Kernel",
               };
 
               const beforeText = before;
@@ -691,11 +941,13 @@ const ChannelSettingsPage = forwardRef(function ChannelSettingsPage({ channel, o
         cursorPosition: 0,
       });
     } else if (node.sourceKind === "knowledge") {
-      // Open sources menu for knowledge pill - different menu for linear vs company
+      // Open sources menu for specific pill - different menu for linear vs company
       if (node.knowledgeType === "linear") {
-        setIsLinearSourcesMenuOpen(true);
+        setOpenLinearSourcesMenuId(node.id);
+        setOpenSourcesMenuId(null); // Close any open company menu
       } else {
-        setIsSourcesMenuOpen(true);
+        setOpenSourcesMenuId(node.id);
+        setOpenLinearSourcesMenuId(null); // Close any open linear menu
       }
     }
   };
@@ -772,8 +1024,8 @@ const ChannelSettingsPage = forwardRef(function ChannelSettingsPage({ channel, o
       if (atIndex !== -1) {
         const query = text.slice(atIndex + 1, cursorPos);
 
-        // Show mention popover if query matches "webhooks"
-        if ("webhooks".startsWith(query.toLowerCase())) {
+        // Show mention popover if query matches "webhooks" or "kernel"
+        if ("webhooks".startsWith(query.toLowerCase()) || "kernel".startsWith(query.toLowerCase())) {
           const caretRect = getCaretRect();
           setMention({
             active: true,
@@ -801,11 +1053,16 @@ const ChannelSettingsPage = forwardRef(function ChannelSettingsPage({ channel, o
 
   // Handle keydown for special keys
   const handleEditorKeyDown = (e) => {
-    // Handle Enter in mention popover - show submenu
+    // Handle Enter in mention popover
     if (mention.active && e.key === "Enter") {
       e.preventDefault();
+      // If @kernel matches, select it directly
+      if ("kernel".startsWith(mention.query.toLowerCase())) {
+        handleSelectKernel();
+        return;
+      }
+      // If @webhooks matches, show submenu
       if ("webhooks".startsWith(mention.query.toLowerCase())) {
-        // Show submenu on Enter - get caret position for submenu
         const caretRect = getCaretRect();
         if (caretRect) {
           setMention((prev) => ({
@@ -818,9 +1075,15 @@ const ChannelSettingsPage = forwardRef(function ChannelSettingsPage({ channel, o
       return;
     }
 
-    // Handle Tab in mention popover - show submenu
+    // Handle Tab in mention popover
     if (mention.active && e.key === "Tab") {
       e.preventDefault();
+      // If @kernel matches, select it directly
+      if ("kernel".startsWith(mention.query.toLowerCase())) {
+        handleSelectKernel();
+        return;
+      }
+      // If @webhooks matches, show submenu
       if ("webhooks".startsWith(mention.query.toLowerCase())) {
         const caretRect = getCaretRect();
         if (caretRect) {
@@ -1040,7 +1303,7 @@ const ChannelSettingsPage = forwardRef(function ChannelSettingsPage({ channel, o
   }
 
   return (
-    <div className="channel-settings-page">
+    <div className={`channel-settings-page${isDisabled ? " disabled" : ""}`}>
       {/* Header */}
       <header className="channel-settings-header">
         <div>
@@ -1106,18 +1369,30 @@ const ChannelSettingsPage = forwardRef(function ChannelSettingsPage({ channel, o
         </div>
       )}
 
-      {/* Tabs */}
-      <div className="channel-settings-tabs">
-        <button
-          type="button"
-          className={
-            "channel-settings-tab" +
-            (activeTab === "overview" ? " channel-settings-tab--active" : "")
-          }
-          onClick={() => handleTabChange("overview")}
-        >
-          Overview
-        </button>
+      {/* Setup incomplete banner */}
+      {setupCancelled && (
+        <div className="setup-incomplete-banner">
+          <svg className="setup-incomplete-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M8 5.5V8.5M8 11V11.01M14 8C14 11.3137 11.3137 14 8 14C4.68629 14 2 11.3137 2 8C2 4.68629 4.68629 2 8 2C11.3137 2 14 4.68629 14 8Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+          </svg>
+          <span>Channel setup incomplete. You can manually finish configuration above.</span>
+        </div>
+      )}
+
+      {/* Settings content wrapper - disabled during loading */}
+      <div className="settings-content" inert={isDisabled ? "" : undefined}>
+        {/* Tabs */}
+        <div className="channel-settings-tabs">
+          <button
+            type="button"
+            className={
+              "channel-settings-tab" +
+              (activeTab === "overview" ? " channel-settings-tab--active" : "")
+            }
+            onClick={() => handleTabChange("overview")}
+          >
+            Overview
+          </button>
         <button
           type="button"
           className={
@@ -1219,7 +1494,7 @@ const ChannelSettingsPage = forwardRef(function ChannelSettingsPage({ channel, o
                                 <span>{node.label}</span>
                               </button>
 
-                              {isLinearSourcesMenuOpen && (
+                              {openLinearSourcesMenuId === node.id && (
                                 <div ref={linearSourcesMenuRef} className="cc-sources-menu" role="menu">
                                   <button className="cc-sources-item" type="button">
                                     <span className="cc-sources-icon">🔷</span>
@@ -1261,6 +1536,9 @@ const ChannelSettingsPage = forwardRef(function ChannelSettingsPage({ channel, o
                               contentEditable={false}
                             >
                               <span>{node.label}</span>
+                              {getPillScopeLabel() && (
+                                <span className="instr-pill-scope">({getPillScopeLabel()})</span>
+                              )}
                               <span className="instr-pill-logos">
                                 {workspaceKernel.sourceIds
                                   .filter(id => !kernelSettings.disabledSources?.includes(id))
@@ -1276,40 +1554,120 @@ const ChannelSettingsPage = forwardRef(function ChannelSettingsPage({ channel, o
                               </span>
                             </button>
 
-                            {isSourcesMenuOpen && (
+                            {openSourcesMenuId === node.id && (
                               <div ref={sourcesMenuRef} className="cc-sources-menu" role="menu">
                                 {workspaceKernel.sourceIds.map(sourceId => {
                                   const connector = CONNECTORS.find(c => c.id === sourceId);
                                   if (!connector) return null;
                                   const isEnabled = !kernelSettings.disabledSources?.includes(sourceId);
+                                  const scopeLabel = getScopeCountLabel(sourceId);
+                                  const hasResources = getSourceResources(sourceId).length > 0;
                                   return (
-                                    <button
+                                    <div
                                       key={sourceId}
-                                      className="cc-sources-item"
-                                      type="button"
-                                      onClick={() => handleToggleSource(sourceId)}
+                                      className="cc-sources-item-wrapper"
+                                      onMouseEnter={(e) => {
+                                        if (hasResources && isEnabled) {
+                                          handleShowScopeSubmenu(sourceId, e.currentTarget.getBoundingClientRect());
+                                        }
+                                      }}
+                                      onMouseLeave={handleHideScopeSubmenu}
                                     >
-                                      <img src={CONNECTOR_ICON_URLS[sourceId]} alt={connector.name} className="cc-sources-icon-img" />
-                                      <span>{connector.name}</span>
-                                      <span className={`cc-sources-toggle ${isEnabled ? "cc-sources-toggle--on" : ""}`}>
-                                        <span className="cc-toggle-track">
-                                          <span className="cc-toggle-thumb"></span>
+                                      <button
+                                        className={`cc-sources-item ${activeScopeSubmenu === sourceId ? "cc-sources-item--active" : ""}`}
+                                        type="button"
+                                        onClick={() => handleToggleSource(sourceId)}
+                                      >
+                                        <img src={CONNECTOR_ICON_URLS[sourceId]} alt={connector.name} className="cc-sources-icon-img" />
+                                        <span className="cc-sources-name">{connector.name}</span>
+                                        {scopeLabel && isEnabled && (
+                                          <span className="cc-sources-count">{scopeLabel}</span>
+                                        )}
+                                        <span className={`cc-sources-toggle ${isEnabled ? "cc-sources-toggle--on" : ""}`}>
+                                          <span className="cc-toggle-track">
+                                            <span className="cc-toggle-thumb"></span>
+                                          </span>
                                         </span>
-                                      </span>
-                                    </button>
+                                        {hasResources && isEnabled && (
+                                          <span className="cc-sources-chevron">›</span>
+                                        )}
+                                      </button>
+                                    </div>
                                   );
                                 })}
                                 <button
                                   className="cc-sources-item cc-sources-item--more"
                                   type="button"
                                   onClick={() => {
-                                    setIsSourcesMenuOpen(false);
+                                    setOpenSourcesMenuId(null);
                                     setIsKernelScreenOpen(true);
                                   }}
                                 >
                                   <span className="cc-sources-icon">⋯</span>
                                   <span>Connect more</span>
                                 </button>
+
+                                {/* Scope submenu */}
+                                {activeScopeSubmenu && scopeSubmenuRect && (
+                                  <div
+                                    ref={scopeSubmenuRef}
+                                    className="cc-scope-submenu"
+                                    style={{
+                                      position: "fixed",
+                                      top: scopeSubmenuRect.top,
+                                      left: scopeSubmenuRect.right + 4,
+                                    }}
+                                    onMouseEnter={handleScopeSubmenuEnter}
+                                    onMouseLeave={handleScopeSubmenuLeave}
+                                  >
+                                    <div className="cc-scope-header">
+                                      <input
+                                        type="text"
+                                        className="cc-scope-search"
+                                        placeholder={getResourceConfig(activeScopeSubmenu).searchPlaceholder}
+                                        value={scopeSearchQuery}
+                                        onChange={(e) => setScopeSearchQuery(e.target.value)}
+                                        onClick={(e) => e.stopPropagation()}
+                                      />
+                                    </div>
+                                    <div className="cc-scope-list">
+                                      {getSourceResources(activeScopeSubmenu)
+                                        .filter(r => r.name.toLowerCase().includes(scopeSearchQuery.toLowerCase()))
+                                        .map(resource => {
+                                          const isSelected = isResourceSelected(activeScopeSubmenu, resource.id);
+                                          const secondaryInfo = getResourceSecondaryInfo(activeScopeSubmenu, resource);
+                                          return (
+                                            <button
+                                              key={resource.id}
+                                              className="cc-scope-item"
+                                              type="button"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleToggleScopeResource(activeScopeSubmenu, resource.id);
+                                              }}
+                                            >
+                                              <span className={`cc-scope-checkbox ${isSelected ? "cc-scope-checkbox--checked" : ""}`}>
+                                                {isSelected && (
+                                                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                                                    <path d="M2 6l3 3 5-6" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                                  </svg>
+                                                )}
+                                              </span>
+                                              <span className="cc-scope-name">{resource.name}</span>
+                                              {secondaryInfo && (
+                                                <span className="cc-scope-meta">{secondaryInfo}</span>
+                                              )}
+                                            </button>
+                                          );
+                                        })}
+                                      {getSourceResources(activeScopeSubmenu).filter(r =>
+                                        r.name.toLowerCase().includes(scopeSearchQuery.toLowerCase())
+                                      ).length === 0 && (
+                                        <div className="cc-scope-empty">No matches found</div>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             )}
                           </span>
@@ -1341,8 +1699,8 @@ const ChannelSettingsPage = forwardRef(function ChannelSettingsPage({ channel, o
                   })}
                 </div>
 
-                {/* Mention popover (@webhooks) with submenu */}
-                {mention.active && "webhooks".startsWith(mention.query.toLowerCase()) && mention.anchorRect && (
+                {/* Mention popover (@webhooks, @kernel) with submenu */}
+                {mention.active && mention.anchorRect && (
                   <div
                     ref={mentionPopoverRef}
                     className="instr-mention-popover"
@@ -1352,15 +1710,29 @@ const ChannelSettingsPage = forwardRef(function ChannelSettingsPage({ channel, o
                       left: mention.anchorRect.left,
                     }}
                   >
-                    <button
-                      type="button"
-                      className="instr-mention-item instr-mention-item--has-submenu"
-                      onMouseEnter={handleShowSubmenu}
-                      onMouseLeave={handleHideSubmenu}
-                    >
-                      <span>@webhooks</span>
-                      <span className="instr-mention-chevron">›</span>
-                    </button>
+                    {/* @kernel option */}
+                    {"kernel".startsWith(mention.query.toLowerCase()) && (
+                      <button
+                        type="button"
+                        className="instr-mention-item"
+                        onClick={handleSelectKernel}
+                      >
+                        <span>@kernel</span>
+                      </button>
+                    )}
+
+                    {/* @webhooks option */}
+                    {"webhooks".startsWith(mention.query.toLowerCase()) && (
+                      <button
+                        type="button"
+                        className="instr-mention-item instr-mention-item--has-submenu"
+                        onMouseEnter={handleShowSubmenu}
+                        onMouseLeave={handleHideSubmenu}
+                      >
+                        <span>@webhooks</span>
+                        <span className="instr-mention-chevron">›</span>
+                      </button>
+                    )}
 
                     {/* Webhook submenu */}
                     {mention.showSubmenu && mention.submenuRect && (
@@ -1482,7 +1854,7 @@ const ChannelSettingsPage = forwardRef(function ChannelSettingsPage({ channel, o
                 <button
                   type="button"
                   className="cc-tools-missing-link"
-                  onClick={() => setIsSourcesMenuOpen(!isSourcesMenuOpen)}
+                  onClick={() => setIsKernelScreenOpen(true)}
                 >
                   Connect
                 </button>
@@ -1730,6 +2102,7 @@ const ChannelSettingsPage = forwardRef(function ChannelSettingsPage({ channel, o
           </div>
         )}
       </div>
+      </div>
 
       {/* Knowledge Kernel Screen */}
       <KnowledgeKernelScreen
@@ -1750,6 +2123,17 @@ const ChannelSettingsPage = forwardRef(function ChannelSettingsPage({ channel, o
         isOpen={isKernelModalOpen}
         onClose={() => setIsKernelModalOpen(false)}
       />
+
+      {/* Creation Snackbar */}
+      {(isLoading || isError || creationState === CreationState.SUCCESS) && (
+        <CreationSnackbar
+          state={creationState}
+          loadingMessage={loadingMessage}
+          elapsedSeconds={elapsedSeconds}
+          onRetry={handleRetrySetup}
+          onCancel={handleCancelSetup}
+        />
+      )}
     </div>
   );
 });

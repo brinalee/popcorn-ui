@@ -15,10 +15,30 @@ let workspaceKernel = {
 };
 
 // Per-channel kernel settings (which sources are enabled per channel)
+// sourceScopes: { [sourceId]: { mode: "all" | "selected", selectedIds: string[] } }
 let channelKernelSettings = {
-  "bug-triaging": { kernelEnabled: true, disabledSources: [] },
-  "daily-updates": { kernelEnabled: true, disabledSources: [] },
-  "release-notes": { kernelEnabled: true, disabledSources: [] },
+  "bug-triaging": {
+    kernelEnabled: true,
+    disabledSources: [],
+    sourceScopes: {
+      "github": { mode: "selected", selectedIds: ["repo-1", "repo-2"] },
+      "linear": { mode: "all", selectedIds: [] },
+      "notion": { mode: "all", selectedIds: [] },
+    },
+  },
+  "daily-updates": {
+    kernelEnabled: true,
+    disabledSources: [],
+    sourceScopes: {},
+  },
+  "release-notes": {
+    kernelEnabled: true,
+    disabledSources: [],
+    sourceScopes: {
+      "github": { mode: "selected", selectedIds: ["repo-1", "repo-5", "repo-6"] },
+      "notion": { mode: "selected", selectedIds: ["page-1", "page-5"] },
+    },
+  },
 };
 
 // Get the workspace kernel
@@ -34,7 +54,27 @@ export function updateWorkspaceKernel(updates) {
 
 // Get channel-specific kernel settings
 export function getChannelKernelSettings(channelId) {
-  return channelKernelSettings[channelId] || { kernelEnabled: true, disabledSources: [] };
+  return channelKernelSettings[channelId] || { kernelEnabled: true, disabledSources: [], sourceScopes: {} };
+}
+
+// Get scope for a specific source in a channel
+export function getChannelSourceScope(channelId, sourceId) {
+  const settings = getChannelKernelSettings(channelId);
+  return settings.sourceScopes?.[sourceId] || { mode: "all", selectedIds: [] };
+}
+
+// Update scope for a specific source in a channel
+export function updateChannelSourceScope(channelId, sourceId, scope) {
+  const currentSettings = getChannelKernelSettings(channelId);
+  const newSourceScopes = {
+    ...currentSettings.sourceScopes,
+    [sourceId]: scope,
+  };
+  channelKernelSettings[channelId] = {
+    ...currentSettings,
+    sourceScopes: newSourceScopes,
+  };
+  return channelKernelSettings[channelId];
 }
 
 // Update channel-specific kernel settings

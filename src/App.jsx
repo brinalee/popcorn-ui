@@ -4,7 +4,9 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import "./App.css";
 import Header from "./components/Header";
 import ChannelScreen from "./components/ChannelScreen";
+import Toast from "./components/Toast";
 import { ThemeProvider, useTheme } from "./contexts/ThemeContext";
+import { ToastProvider } from "./contexts/ToastContext";
 
 function AppContent() {
   const [activeSection, setActiveSection] = useState("chats"); // "chats" | "app"
@@ -44,7 +46,10 @@ function AppContent() {
 function App() {
   return (
     <ThemeProvider>
-      <AppContent />
+      <ToastProvider>
+        <AppContent />
+        <Toast />
+      </ToastProvider>
     </ThemeProvider>
   );
 }

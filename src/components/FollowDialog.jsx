@@ -6,11 +6,13 @@ function FollowDialog({
   onClose,
   channels,
   dms,
+  followedIds = new Set(),
   onFollowChannel,
   onFollowDM,
 }) {
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState("channels");
+  const [sortMode, setSortMode] = useState("lastCreated"); // "lastCreated" | "alphabetical"
   const overlayRef = useRef(null);
 
   // Close on Escape key
@@ -32,6 +34,22 @@ function FollowDialog({
   const normalized = search.trim().toLowerCase();
   const showingSearch = normalized.length > 0;
 
+  // Sort function based on sortMode
+  const sortItems = (items, type) => {
+    const sorted = [...items];
+    if (sortMode === "alphabetical") {
+      sorted.sort((a, b) => {
+        const nameA = type === "channel" ? a.label : a.name;
+        const nameB = type === "channel" ? b.label : b.name;
+        return nameA.toLowerCase().localeCompare(nameB.toLowerCase());
+      });
+    } else {
+      // lastCreated - newest first (higher createdAt = more recent)
+      sorted.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    }
+    return sorted;
+  };
+
   const filteredChannels = channels.filter((ch) =>
     ch.label.toLowerCase().includes(normalized)
   );
@@ -39,6 +57,12 @@ function FollowDialog({
   const filteredDMs = dms.filter((dm) =>
     dm.name.toLowerCase().includes(normalized)
   );
+
+  // Apply sorting
+  const sortedChannels = sortItems(showingSearch ? filteredChannels : channels, "channel");
+  const sortedDMs = sortItems(showingSearch ? filteredDMs : dms, "dm");
+  const sortedFilteredChannels = sortItems(filteredChannels, "channel");
+  const sortedFilteredDMs = sortItems(filteredDMs, "dm");
 
   const handleOverlayClick = (e) => {
     if (e.target === overlayRef.current) {
@@ -75,29 +99,41 @@ function FollowDialog({
           />
         </div>
 
-        {/* Tabs only visible when NOT searching */}
+        {/* Tabs and sort - only visible when NOT searching */}
         {!showingSearch && (
-          <div className="follow-dialog-tabs">
-            <button
-              type="button"
-              className={
-                "follow-tab" +
-                (activeTab === "channels" ? " follow-tab--active" : "")
-              }
-              onClick={() => setActiveTab("channels")}
-            >
-              Channels
-            </button>
-            <button
-              type="button"
-              className={
-                "follow-tab" +
-                (activeTab === "dms" ? " follow-tab--active" : "")
-              }
-              onClick={() => setActiveTab("dms")}
-            >
-              Direct messages
-            </button>
+          <div className="follow-dialog-controls">
+            <div className="follow-dialog-tabs">
+              <button
+                type="button"
+                className={
+                  "follow-tab" +
+                  (activeTab === "channels" ? " follow-tab--active" : "")
+                }
+                onClick={() => setActiveTab("channels")}
+              >
+                Channels
+              </button>
+              <button
+                type="button"
+                className={
+                  "follow-tab" +
+                  (activeTab === "dms" ? " follow-tab--active" : "")
+                }
+                onClick={() => setActiveTab("dms")}
+              >
+                Direct messages
+              </button>
+            </div>
+            <div className="follow-dialog-sort">
+              <select
+                value={sortMode}
+                onChange={(e) => setSortMode(e.target.value)}
+                className="follow-dialog-sort-select"
+              >
+                <option value="lastCreated">Last created</option>
+                <option value="alphabetical">Alphabetical</option>
+              </select>
+            </div>
           </div>
         )}
 
@@ -105,23 +141,25 @@ function FollowDialog({
           {showingSearch ? (
             <>
               {/* When searching, show both groups stacked */}
-              {filteredChannels.length > 0 && (
+              {sortedFilteredChannels.length > 0 && (
                 <FollowListSection
                   title="Channels"
-                  entries={filteredChannels}
+                  entries={sortedFilteredChannels}
                   onFollow={onFollowChannel}
+                  followedIds={followedIds}
                   type="channel"
                 />
               )}
-              {filteredDMs.length > 0 && (
+              {sortedFilteredDMs.length > 0 && (
                 <FollowListSection
                   title="Direct messages"
-                  entries={filteredDMs}
+                  entries={sortedFilteredDMs}
                   onFollow={onFollowDM}
+                  followedIds={followedIds}
                   type="dm"
                 />
               )}
-              {filteredChannels.length === 0 && filteredDMs.length === 0 && (
+              {sortedFilteredChannels.length === 0 && sortedFilteredDMs.length === 0 && (
                 <div className="follow-dialog-empty">
                   No channels or conversations found
                 </div>
@@ -133,15 +171,17 @@ function FollowDialog({
               {activeTab === "channels" ? (
                 <FollowListSection
                   title="Channels"
-                  entries={channels}
+                  entries={sortedChannels}
                   onFollow={onFollowChannel}
+                  followedIds={followedIds}
                   type="channel"
                 />
               ) : (
                 <FollowListSection
                   title="Direct messages"
-                  entries={dms}
+                  entries={sortedDMs}
                   onFollow={onFollowDM}
+                  followedIds={followedIds}
                   type="dm"
                 />
               )}
@@ -153,7 +193,7 @@ function FollowDialog({
   );
 }
 
-function FollowListSection({ title, entries, onFollow, type }) {
+function FollowListSection({ title, entries, onFollow, followedIds = new Set(), type }) {
   if (!entries || entries.length === 0) {
     return (
       <div className="follow-section">
@@ -167,52 +207,74 @@ function FollowListSection({ title, entries, onFollow, type }) {
     <div className="follow-section">
       <div className="follow-section-title">{title}</div>
       <ul className="follow-list">
-        {entries.map((entry) => (
-          <li key={entry.id} className="follow-list-item">
-            <div className="follow-list-item-content">
-              {type === "channel" ? (
-                <span
-                  className={
-                    "sidebar-icon " +
-                    (entry.iconType === "hash" ? "hash" : "bolt")
-                  }
-                >
-                  {entry.iconType === "hash" ? (
-                    "#"
-                  ) : (
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 16 16"
-                      fill="currentColor"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path d="M9 2L4 9h4l-1 5 5-7H8l1-5z" />
-                    </svg>
-                  )}
+        {entries.map((entry) => {
+          const isFollowed = followedIds.has(entry.id);
+
+          return (
+            <li key={entry.id} className={`follow-list-item ${isFollowed ? "follow-list-item--added" : ""}`}>
+              <div className="follow-list-item-content">
+                {type === "channel" ? (
+                  <span
+                    className={
+                      "sidebar-icon " +
+                      (entry.iconType === "hash" ? "hash" : "bolt")
+                    }
+                  >
+                    {entry.iconType === "hash" ? (
+                      "#"
+                    ) : (
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 16 16"
+                        fill="currentColor"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path d="M9 2L4 9h4l-1 5 5-7H8l1-5z" />
+                      </svg>
+                    )}
+                  </span>
+                ) : (
+                  <div className={`avatar avatar-small ${entry.avatarColor}`}>
+                    {entry.avatarUrl ? (
+                      <img src={entry.avatarUrl} alt={entry.name} />
+                    ) : (
+                      entry.initials
+                    )}
+                  </div>
+                )}
+                <span className="follow-list-label">
+                  {type === "channel" ? entry.label : entry.name}
+                </span>
+              </div>
+              {isFollowed ? (
+                <span className="follow-list-added-indicator">
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                  Added
                 </span>
               ) : (
-                <div className={`avatar avatar-small ${entry.avatarColor}`}>
-                  {entry.avatarUrl ? (
-                    <img src={entry.avatarUrl} alt={entry.name} />
-                  ) : (
-                    entry.initials
-                  )}
-                </div>
+                <button
+                  type="button"
+                  className="follow-list-follow-btn"
+                  onClick={() => onFollow(entry.id)}
+                >
+                  Add
+                </button>
               )}
-              <span className="follow-list-label">
-                {type === "channel" ? entry.label : entry.name}
-              </span>
-            </div>
-            <button
-              type="button"
-              className="follow-list-follow-btn"
-              onClick={() => onFollow(entry.id)}
-            >
-              Add
-            </button>
-          </li>
-        ))}
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

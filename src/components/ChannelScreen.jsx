@@ -50,6 +50,9 @@ function ChannelScreen() {
   const [sidebarWidth, setSidebarWidth] = useState(320);
   const [showAnimation, setShowAnimation] = useState(false);
 
+  // Pending channel setup state (for loading snackbar in settings page)
+  const [pendingChannelSetup, setPendingChannelSetup] = useState(null);
+
   // Ref for ChannelSettingsPage to check unsaved changes
   const settingsRef = useRef(null);
 
@@ -74,20 +77,39 @@ function ChannelScreen() {
     setShowCreateModal(true);
   };
 
-  const handleCreateFromPrompt = (prompt) => {
+  const handleCreateFromPrompt = (prompt, isPrivate, memberIds, options = {}) => {
     const newChannel = createChannelFromPrompt(prompt);
     setChannels((prev) => [newChannel, ...prev]);
     setShowCreateModal(false);
     setViewMode("channel-settings");
     navigate(`/channel/${newChannel.id}`);
+
+    // If pendingSetup flag is set, track for loading snackbar
+    if (options.pendingSetup) {
+      setPendingChannelSetup({
+        channelId: newChannel.id,
+        prompt,
+        isPrivate,
+        memberIds,
+      });
+    }
   };
 
-  const handleCreateBlank = () => {
+  const handleCreateBlank = (isPrivate, memberIds, options = {}) => {
     const newChannel = createBlankChannel();
     setChannels((prev) => [newChannel, ...prev]);
     setShowCreateModal(false);
     setViewMode("channel-settings");
     navigate(`/channel/${newChannel.id}`);
+
+    // If pendingSetup flag is set, track for loading snackbar
+    if (options.pendingSetup) {
+      setPendingChannelSetup({
+        channelId: newChannel.id,
+        isPrivate,
+        memberIds,
+      });
+    }
   };
 
   const handleCreateFromTemplate = (templateData) => {
@@ -96,6 +118,16 @@ function ChannelScreen() {
     setShowCreateModal(false);
     setViewMode("channel-settings");
     navigate(`/channel/${newChannel.id}`);
+
+    // If pendingSetup flag is set, track for loading snackbar
+    if (templateData.pendingSetup) {
+      setPendingChannelSetup({
+        channelId: newChannel.id,
+        templateId: templateData.templateId,
+        isPrivate: templateData.isPrivate,
+        memberIds: templateData.memberIds,
+      });
+    }
   };
 
   const handleCancelModal = () => {
@@ -310,6 +342,9 @@ function ChannelScreen() {
             channel={activeChannel}
             onSave={handleSaveSettings}
             onCancel={handleCancelSettings}
+            pendingSetup={pendingChannelSetup?.channelId === activeChannel.id ? pendingChannelSetup : null}
+            onSetupComplete={() => setPendingChannelSetup(null)}
+            onSetupCancel={() => setPendingChannelSetup(null)}
           />
         ) : activeChannel ? (
           <ChatWindow

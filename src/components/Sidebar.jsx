@@ -13,11 +13,18 @@ import FollowDialog from "./FollowDialog";
 import Tooltip from "./Tooltip";
 import SidebarSearchBar from "./SidebarSearchBar";
 import { useTheme } from "../contexts/ThemeContext";
+import { useToast } from "../contexts/ToastContext";
 import KnowledgeKernelScreen from "./KnowledgeKernelScreen";
+import EphemeralChannelNotification from "./EphemeralChannelNotification";
+import EphemeralChannelEntry from "./EphemeralChannelEntry";
+import DeleteSectionDialog from "./DeleteSectionDialog";
+import SectionEditDialog from "./SectionEditDialog";
+import NotificationBar from "./NotificationBar";
 
 function Sidebar({ channels, dms, activeChannelId, onSelectChannel, onStartCreateChannel }) {
   const [showMenu, setShowMenu] = useState(false);
   const { theme, setTheme } = useTheme();
+  const { showToast } = useToast();
   const isDark = theme === "dark";
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showComposerMenu, setShowComposerMenu] = useState(false);
@@ -34,6 +41,24 @@ function Sidebar({ channels, dms, activeChannelId, onSelectChannel, onStartCreat
   const [notificationSettings, setNotificationSettings] = useState({});
   const [sidebarSearch, setSidebarSearch] = useState("");
   const [showKernelScreen, setShowKernelScreen] = useState(false);
+
+  // Ephemeral channel state
+  const [ephemeralNotification, setEphemeralNotification] = useState(null);
+  const [ephemeralChannel, setEphemeralChannel] = useState(null);
+
+  // Notification bar state - array of notifications
+  // Each notification: { id, type: "mention" | "channelCreated", channelId, channelName, message }
+  const [notifications, setNotifications] = useState([]);
+
+  // Delete section confirmation state
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+
+  // Edit section dialog state
+  const [editSection, setEditSection] = useState(null);
+  // { sectionId, sectionTitle }
+
+  // Track unread counts per item (for simulated DMs)
+  const [unreadCounts, setUnreadCounts] = useState({});
 
   const composerBtnRef = useRef(null);
   const composerMenuRef = useRef(null);
@@ -88,8 +113,10 @@ function Sidebar({ channels, dms, activeChannelId, onSelectChannel, onStartCreat
     const newSection = {
       id: `sec-${name.toLowerCase().replace(/\s+/g, "-")}-${Date.now()}`,
       title: name,
+      sortMode: "manual",
       isCollapsed: false,
-      itemIds: []
+      itemIds: [],
+      isProtected: false
     };
     setSections([newSection, ...sections]); // Add at top
   };
@@ -100,6 +127,418 @@ function Sidebar({ channels, dms, activeChannelId, onSelectChannel, onStartCreat
         ? { ...section, isCollapsed: !section.isCollapsed }
         : section
     ));
+  };
+
+  // ========================================
+  // SECTION MANAGEMENT HANDLERS
+  // ========================================
+
+  // Rename a section
+  const handleRenameSection = (sectionId, newTitle) => {
+    const section = sections.find(s => s.id === sectionId);
+    if (section?.isProtected) return; // Cannot rename protected sections
+
+    setSections(prev => prev.map(s =>
+      s.id === sectionId ? { ...s, title: newTitle } : s
+    ));
+  };
+
+  // Change sort mode for a section
+  const handleChangeSortMode = (sectionId, mode) => {
+    setSections(prev => prev.map(s =>
+      s.id === sectionId ? { ...s, sortMode: mode } : s
+    ));
+  };
+
+  // Delete section with confirmation
+  const handleDeleteSectionConfirm = (sectionId) => {
+    const section = sections.find(s => s.id === sectionId);
+    if (!section || section.isProtected) return;
+
+    setDeleteConfirm({
+      sectionId,
+      sectionTitle: section.title
+    });
+    setContextMenu(null);
+  };
+
+  // Delete section header only - move items to Uncategorized
+  const handleDeleteSectionHeader = () => {
+    if (!deleteConfirm) return;
+
+    const section = sections.find(s => s.id === deleteConfirm.sectionId);
+    if (!section) {
+      setDeleteConfirm(null);
+      return;
+    }
+
+    const itemsToMove = section.itemIds;
+
+    setSections(prev => {
+      // Remove the section
+      const withoutDeleted = prev.filter(s => s.id !== deleteConfirm.sectionId);
+
+      // Find uncategorized section
+      const uncatIndex = withoutDeleted.findIndex(s => s.id === "uncategorized");
+
+      if (uncatIndex !== -1 && itemsToMove.length > 0) {
+        // Add items to existing uncategorized
+        withoutDeleted[uncatIndex] = {
+          ...withoutDeleted[uncatIndex],
+          itemIds: [...itemsToMove, ...withoutDeleted[uncatIndex].itemIds]
+        };
+      }
+
+      return withoutDeleted;
+    });
+
+    setDeleteConfirm(null);
+
+    if (itemsToMove.length > 0) {
+      showToast({
+        message: "Section removed. Items moved to Uncategorized.",
+        type: "info"
+      });
+    } else {
+      showToast({
+        message: "Section removed.",
+        type: "info"
+      });
+    }
+  };
+
+  // Delete section and all its contents
+  const handleDeleteSectionAndContents = () => {
+    if (!deleteConfirm) return;
+
+    const section = sections.find(s => s.id === deleteConfirm.sectionId);
+    if (!section) {
+      setDeleteConfirm(null);
+      return;
+    }
+
+    const itemCount = section.itemIds.length;
+
+    // Simply remove the section (items are not moved anywhere)
+    setSections(prev => prev.filter(s => s.id !== deleteConfirm.sectionId));
+
+    setDeleteConfirm(null);
+
+    showToast({
+      message: `Section and ${itemCount} ${itemCount === 1 ? "item" : "items"} deleted.`,
+      type: "info"
+    });
+  };
+
+  // Open section menu (from section header button)
+  const handleOpenSectionMenu = (e, section) => {
+    handleOpenContextMenu({
+      type: "section",
+      id: section.id,
+      title: section.title,
+      x: e.clientX,
+      y: e.clientY
+    });
+  };
+
+  // ========================================
+  // SORTING UTILITY
+  // ========================================
+
+  // Get sorted item IDs based on section's sortMode
+  const getSortedItemIds = (section) => {
+    if (!section.sortMode || section.sortMode === "manual") {
+      return section.itemIds;
+    }
+
+    const items = section.itemIds
+      .map(id => getItemById(id))
+      .filter(Boolean);
+
+    if (section.sortMode === "abc") {
+      items.sort((a, b) => {
+        const nameA = a.label || a.name || "";
+        const nameB = b.label || b.name || "";
+        return nameA.localeCompare(nameB);
+      });
+    } else if (section.sortMode === "lastMessage") {
+      items.sort((a, b) => (b.lastMessageAt || 0) - (a.lastMessageAt || 0));
+    }
+
+    return items.map(item => item.id);
+  };
+
+  // ========================================
+  // EPHEMERAL CHANNEL HANDLERS
+  // ========================================
+
+  // Simulate receiving a notification from a channel not in sidebar
+  const simulateExternalNotification = (channelId, channelName, preview = "You were mentioned") => {
+    // Only show if channel not already in sidebar
+    const allItemIds = sections.flatMap(s => s.itemIds);
+    if (allItemIds.includes(channelId)) return;
+
+    // Replace any existing ephemeral with new one
+    setEphemeralNotification({ id: channelId, name: channelName, preview });
+    setEphemeralChannel(null);
+  };
+
+  // User clicks notification → show ephemeral entry in sidebar
+  const handleOpenEphemeral = () => {
+    if (!ephemeralNotification) return;
+    setEphemeralChannel({
+      id: ephemeralNotification.id,
+      name: ephemeralNotification.name,
+      iconType: "hash"
+    });
+    setEphemeralNotification(null);
+  };
+
+  // User clicks "+" → add ephemeral to Uncategorized section
+  const handleAddEphemeralToSidebar = () => {
+    if (!ephemeralChannel) return;
+
+    setSections(prev => {
+      // Find uncategorized section
+      const uncatIndex = prev.findIndex(s => s.id === "uncategorized");
+
+      if (uncatIndex !== -1) {
+        // Add to existing uncategorized
+        return prev.map(s =>
+          s.id === "uncategorized"
+            ? { ...s, itemIds: [ephemeralChannel.id, ...s.itemIds] }
+            : s
+        );
+      }
+      // Create uncategorized at top if it doesn't exist
+      return [{
+        id: "uncategorized",
+        title: "Uncategorized",
+        sortMode: "manual",
+        isCollapsed: false,
+        itemIds: [ephemeralChannel.id],
+        isProtected: true
+      }, ...prev];
+    });
+
+    setEphemeralChannel(null);
+  };
+
+  // Handle selecting an ephemeral channel
+  const handleSelectEphemeralChannel = () => {
+    if (ephemeralChannel) {
+      onSelectChannel?.(ephemeralChannel.id);
+    }
+  };
+
+  // Wrapper for channel selection that dismisses ephemeral when navigating away
+  const handleChannelSelect = (channelId) => {
+    // If selecting a different channel than the ephemeral one, dismiss ephemeral
+    if (ephemeralChannel && channelId !== ephemeralChannel.id) {
+      setEphemeralChannel(null);
+    }
+    onSelectChannel?.(channelId);
+  };
+
+  // Expose simulateExternalNotification to window for demo purposes
+  useEffect(() => {
+    window.simulateExternalNotification = simulateExternalNotification;
+    return () => {
+      delete window.simulateExternalNotification;
+    };
+  }, [sections]);
+
+  // ========================================
+  // NOTIFICATION BAR HANDLERS
+  // ========================================
+
+  // Add a notification to the bar
+  const addNotification = (type, channelId, channelName, message) => {
+    // Check if channel is already in sidebar
+    const allItemIds = sections.flatMap(s => s.itemIds);
+    if (type === "channelCreated" && allItemIds.includes(channelId)) return;
+
+    const newNotification = {
+      id: `notif-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      type,
+      channelId,
+      channelName,
+      message
+    };
+
+    setNotifications(prev => [...prev, newNotification]);
+  };
+
+  // Dismiss a notification
+  const handleDismissNotification = (notificationId) => {
+    setNotifications(prev => prev.filter(n => n.id !== notificationId));
+  };
+
+  // Handle notification click based on type
+  const handleNotificationClick = (notification) => {
+    if (notification.type === "mention") {
+      // For mentions: show ephemeral sidebar entry
+      setEphemeralChannel({
+        id: notification.channelId,
+        name: notification.channelName,
+        iconType: "hash"
+      });
+      // Remove the notification
+      handleDismissNotification(notification.id);
+    } else if (notification.type === "channelCreated") {
+      // For channelCreated: permanently add to Uncategorized section
+      setSections(prev => {
+        // Check if already in sidebar
+        const alreadyExists = prev.some(s => s.itemIds.includes(notification.channelId));
+        if (alreadyExists) return prev;
+
+        // Find uncategorized section
+        const uncatIndex = prev.findIndex(s => s.id === "uncategorized");
+
+        if (uncatIndex !== -1) {
+          // Add to existing uncategorized
+          return prev.map(s =>
+            s.id === "uncategorized"
+              ? { ...s, itemIds: [notification.channelId, ...s.itemIds] }
+              : s
+          );
+        }
+        // Create uncategorized at top if it doesn't exist
+        return [{
+          id: "uncategorized",
+          title: "Uncategorized",
+          sortMode: "manual",
+          isCollapsed: false,
+          itemIds: [notification.channelId],
+          isProtected: true
+        }, ...prev];
+      });
+      // Remove the notification
+      handleDismissNotification(notification.id);
+      // Show toast
+      showToast({
+        message: `#${notification.channelName} added to sidebar`,
+        type: "success"
+      });
+    }
+  };
+
+  // Add channel from notification directly to Uncategorized (via + button)
+  const handleAddFromNotification = (notification) => {
+    // Add to Uncategorized section
+    setSections(prev => {
+      // Check if already in sidebar
+      const alreadyExists = prev.some(s => s.itemIds.includes(notification.channelId));
+      if (alreadyExists) return prev;
+
+      // Find uncategorized section
+      const uncatIndex = prev.findIndex(s => s.id === "uncategorized");
+
+      if (uncatIndex !== -1) {
+        return prev.map(s =>
+          s.id === "uncategorized"
+            ? { ...s, itemIds: [notification.channelId, ...s.itemIds] }
+            : s
+        );
+      }
+      // Create uncategorized at top if it doesn't exist
+      return [{
+        id: "uncategorized",
+        title: "Uncategorized",
+        sortMode: "manual",
+        isCollapsed: false,
+        itemIds: [notification.channelId],
+        isProtected: true
+      }, ...prev];
+    });
+
+    // Remove the notification
+    handleDismissNotification(notification.id);
+
+    // Show toast
+    showToast({
+      message: `#${notification.channelName} added to sidebar`,
+      type: "success"
+    });
+  };
+
+  // Simulate notification for testing
+  const simulateNotificationBar = (type) => {
+    if (type === "mention") {
+      addNotification(
+        "mention",
+        "design-reviews",
+        "design-reviews",
+        "You were mentioned"
+      );
+    } else if (type === "channelCreated") {
+      // Use existing channels from directory that aren't in the sidebar
+      const allItemIds = sections.flatMap(s => s.itemIds);
+      const availableChannels = ["product-updates", "infrastructure", "marketing", "customer-feedback", "team-events", "engineering", "onboarding", "security-alerts", "sales", "support", "random"];
+      const notInSidebar = availableChannels.filter(id => !allItemIds.includes(id));
+
+      if (notInSidebar.length === 0) {
+        showToast({ message: "All channels already in sidebar", type: "info" });
+        return;
+      }
+
+      const channelId = notInSidebar[Math.floor(Math.random() * notInSidebar.length)];
+      addNotification(
+        "channelCreated",
+        channelId,
+        channelId,
+        "New channel created"
+      );
+    }
+  };
+
+  // Expose simulation function to window for demo
+  useEffect(() => {
+    window.simulateNotificationBar = simulateNotificationBar;
+    return () => {
+      delete window.simulateNotificationBar;
+    };
+  }, [sections]);
+
+  // Simulate a new DM appearing in the sidebar
+  const simulateNewDM = () => {
+    // Get unfollowed DMs from directory
+    const allItemIds = sections.flatMap(s => s.itemIds);
+    const unfollowedDMs = dmDirectory.filter(dm => !allItemIds.includes(dm.id));
+
+    if (unfollowedDMs.length === 0) {
+      showToast({ message: "All DMs already in sidebar", type: "info" });
+      return;
+    }
+
+    // Pick a random unfollowed DM
+    const dm = unfollowedDMs[Math.floor(Math.random() * unfollowedDMs.length)];
+    const messageCount = Math.floor(Math.random() * 5) + 1; // 1-5 messages
+
+    // Add to Uncategorized section
+    setSections(prev => {
+      const uncatIndex = prev.findIndex(s => s.id === "uncategorized");
+      if (uncatIndex !== -1) {
+        return prev.map(s =>
+          s.id === "uncategorized"
+            ? { ...s, itemIds: [dm.id, ...s.itemIds] }
+            : s
+        );
+      }
+      return [{
+        id: "uncategorized",
+        title: "Uncategorized",
+        sortMode: "manual",
+        isCollapsed: false,
+        itemIds: [dm.id],
+        isProtected: true
+      }, ...prev];
+    });
+
+    // Set unread count
+    setUnreadCounts(prev => ({ ...prev, [dm.id]: messageCount }));
+
+    showToast({ message: `New DM from ${dm.name}`, type: "info" });
   };
 
   // Context menu handlers
@@ -188,22 +627,58 @@ function Sidebar({ channels, dms, activeChannelId, onSelectChannel, onStartCreat
     dm => !followedIds.has(dm.id)
   );
 
-  // Follow a channel - adds to ungrouped at top
+  // Follow a channel - adds to Uncategorized section
   const handleFollowChannel = (channelId) => {
     // Check if already followed
     if (followedIds.has(channelId)) return;
 
-    // Add to top of ungrouped
-    setUngroupedItemIds([channelId, ...ungroupedItemIds]);
+    // Add to Uncategorized section
+    setSections(prev => {
+      const uncatIndex = prev.findIndex(s => s.id === "uncategorized");
+      if (uncatIndex !== -1) {
+        return prev.map(s =>
+          s.id === "uncategorized"
+            ? { ...s, itemIds: [channelId, ...s.itemIds] }
+            : s
+        );
+      }
+      // Create uncategorized at top if it doesn't exist
+      return [{
+        id: "uncategorized",
+        title: "Uncategorized",
+        sortMode: "manual",
+        isCollapsed: false,
+        itemIds: [channelId],
+        isProtected: true
+      }, ...prev];
+    });
   };
 
-  // Follow a DM - adds to ungrouped at top
+  // Follow a DM - adds to Uncategorized section
   const handleFollowDM = (dmId) => {
     // Check if already followed
     if (followedIds.has(dmId)) return;
 
-    // Add to top of ungrouped
-    setUngroupedItemIds([dmId, ...ungroupedItemIds]);
+    // Add to Uncategorized section
+    setSections(prev => {
+      const uncatIndex = prev.findIndex(s => s.id === "uncategorized");
+      if (uncatIndex !== -1) {
+        return prev.map(s =>
+          s.id === "uncategorized"
+            ? { ...s, itemIds: [dmId, ...s.itemIds] }
+            : s
+        );
+      }
+      // Create uncategorized at top if it doesn't exist
+      return [{
+        id: "uncategorized",
+        title: "Uncategorized",
+        sortMode: "manual",
+        isCollapsed: false,
+        itemIds: [dmId],
+        isProtected: true
+      }, ...prev];
+    });
   };
 
   const handleDragStart = (event) => {
@@ -298,8 +773,33 @@ function Sidebar({ channels, dms, activeChannelId, onSelectChannel, onStartCreat
     const activeType = activeData.type;
     const overType = overData?.type;
 
+    // EPHEMERAL → SECTION (convert to persistent)
+    if (activeType === "ephemeral" && ephemeralChannel) {
+      // Find target section
+      let targetSectionId = over.id;
+      if (overType === "item") {
+        targetSectionId = overData.sectionId;
+      } else if (overType === "section") {
+        targetSectionId = over.id;
+      }
+
+      // Add ephemeral channel to the target section
+      if (targetSectionId) {
+        setSections(prev => prev.map(s =>
+          s.id === targetSectionId
+            ? { ...s, itemIds: [ephemeralChannel.id, ...s.itemIds] }
+            : s
+        ));
+        setEphemeralChannel(null);
+      }
+      return;
+    }
+
     // SECTION → SECTION reordering
     if (activeType === "section") {
+      // Prevent dragging Uncategorized section
+      if (active.id === "uncategorized") return;
+
       let targetSectionId = over.id;
 
       // If over an item, find its parent section
@@ -308,9 +808,12 @@ function Sidebar({ channels, dms, activeChannelId, onSelectChannel, onStartCreat
       }
 
       const oldIndex = sections.findIndex(s => s.id === active.id);
-      const newIndex = sections.findIndex(s => s.id === targetSectionId);
+      let newIndex = sections.findIndex(s => s.id === targetSectionId);
 
       if (oldIndex === -1 || newIndex === -1) return;
+
+      // Don't allow moving to position 0 (Uncategorized must stay at top)
+      if (newIndex === 0) newIndex = 1;
 
       // Adjust index if dragging down
       const finalIndex = oldIndex < newIndex ? newIndex : newIndex;
@@ -362,7 +865,13 @@ function Sidebar({ channels, dms, activeChannelId, onSelectChannel, onStartCreat
         // Moving between different sections
         const newActiveItems = activeSection.itemIds.filter(id => id !== active.id);
         const newOverItems = [...overSection.itemIds];
-        newOverItems.splice(insertIndex, 0, active.id);
+
+        // If target section has non-manual sort mode, just add to end
+        if (overSection.sortMode && overSection.sortMode !== "manual") {
+          newOverItems.push(active.id);
+        } else {
+          newOverItems.splice(insertIndex, 0, active.id);
+        }
 
         return prevSections.map(section => {
           if (section.id === activeSectionId) {
@@ -478,23 +987,41 @@ function Sidebar({ channels, dms, activeChannelId, onSelectChannel, onStartCreat
     }
 
     if (contextMenu.type === "section") {
-      return [
-        {
+      const section = sections.find(s => s.id === contextMenu.id);
+      const isProtected = section?.isProtected;
+
+      const items = [];
+
+      if (!isProtected) {
+        items.push({
           key: "edit-section",
           label: "Edit section",
-          onClick: () => console.log("Edit section", contextMenu.id)
-        },
-        {
-          key: "sort-section",
-          label: "Sort section",
-          submenu: true
-        },
-        {
+          onClick: () => {
+            setEditSection({
+              sectionId: contextMenu.id,
+              sectionTitle: section.title
+            });
+            setContextMenu(null);
+          }
+        });
+      }
+
+      items.push({
+        key: "sort-section",
+        label: "Sort section",
+        submenu: true
+      });
+
+      if (!isProtected) {
+        items.push({
           key: "delete-section",
           label: "Delete section",
           danger: true,
-          onClick: () => handleDeleteSection(contextMenu.id)
-        },
+          onClick: () => handleDeleteSectionConfirm(contextMenu.id)
+        });
+      }
+
+      items.push(
         { key: "sep-1", isSeparator: true },
         {
           key: "create-section",
@@ -511,7 +1038,9 @@ function Sidebar({ channels, dms, activeChannelId, onSelectChannel, onStartCreat
           label: "Create direct message",
           onClick: () => setShowCreateDMDialog(true)
         }
-      ];
+      );
+
+      return items;
     }
 
     return [];
@@ -590,31 +1119,38 @@ function Sidebar({ channels, dms, activeChannelId, onSelectChannel, onStartCreat
   // Generate sort section submenu items
   const getSortSectionItems = () => {
     const sectionId = sortSectionMenu?.sectionId;
+    const section = sections.find(s => s.id === sectionId);
+    const currentMode = section?.sortMode || "manual";
 
     return [
       {
         key: "abc",
         label: "ABC",
-        selected: true,
+        selected: currentMode === "abc",
         onClick: () => {
-          console.log("Sort section alphabetically", sectionId);
+          handleChangeSortMode(sectionId, "abc");
           setSortSectionMenu(null);
+          setContextMenu(null);
         }
       },
       {
-        key: "newest",
+        key: "lastMessage",
         label: "Newest message",
+        selected: currentMode === "lastMessage",
         onClick: () => {
-          console.log("Sort section by newest message", sectionId);
+          handleChangeSortMode(sectionId, "lastMessage");
           setSortSectionMenu(null);
+          setContextMenu(null);
         }
       },
       {
-        key: "custom",
+        key: "manual",
         label: "Custom",
+        selected: currentMode === "manual",
         onClick: () => {
-          console.log("Sort section custom", sectionId);
+          handleChangeSortMode(sectionId, "manual");
           setSortSectionMenu(null);
+          setContextMenu(null);
         }
       }
     ];
@@ -628,7 +1164,7 @@ function Sidebar({ channels, dms, activeChannelId, onSelectChannel, onStartCreat
           "sidebar-item" +
           (channel.id === activeChannelId ? " active" : "")
         }
-        onClick={() => onSelectChannel(channel.id)}
+        onClick={() => handleChannelSelect(channel.id)}
         onContextMenu={(e) => {
           e.preventDefault();
           handleOpenContextMenu({
@@ -682,11 +1218,22 @@ function Sidebar({ channels, dms, activeChannelId, onSelectChannel, onStartCreat
   // Render a DM item
   const renderDMItem = (dm, sectionId) => {
     const isGroupDM = dm.name.includes(',');
+    const unreadCount = unreadCounts[dm.id] || 0;
 
     return (
       <DraggableItem key={dm.id} id={dm.id} sectionId={sectionId}>
         <div
-          className="dm-item"
+          className={`dm-item ${unreadCount > 0 ? "dm-item--unread" : ""}`}
+          onClick={() => {
+            // Clear unread when clicked
+            if (unreadCount > 0) {
+              setUnreadCounts(prev => {
+                const next = { ...prev };
+                delete next[dm.id];
+                return next;
+              });
+            }
+          }}
           onContextMenu={(e) => {
             e.preventDefault();
             handleOpenContextMenu({
@@ -744,20 +1291,26 @@ function Sidebar({ channels, dms, activeChannelId, onSelectChannel, onStartCreat
             <div className="dm-name">{dm.name}</div>
             <div className="dm-preview">{dm.preview}</div>
           </div>
-          <Tooltip text="Hide DM. New messages
+
+          {/* Unread badge - positioned on right */}
+          {unreadCount > 0 ? (
+            <span className="dm-unread-badge">{unreadCount}</span>
+          ) : (
+            <Tooltip text="Hide DM. New messages
 will bring it back." variant="dm">
-            <button
-              type="button"
-              className="sidebar-item-unfollow"
-              aria-label={`Hide ${dm.name}`}
-              onClick={(e) => {
-                e.stopPropagation();
-                handleHideItem(dm.id);
-              }}
-            >
-              ×
-            </button>
-          </Tooltip>
+              <button
+                type="button"
+                className="sidebar-item-unfollow"
+                aria-label={`Hide ${dm.name}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleHideItem(dm.id);
+                }}
+              >
+                ×
+              </button>
+            </Tooltip>
+          )}
         </div>
       </DraggableItem>
     );
@@ -782,28 +1335,6 @@ will bring it back." variant="dm">
         </div>
 
         <div className="workspace-header-actions">
-          {/* Knowledge Kernels button */}
-          <Tooltip text="Knowledge Kernels">
-            <button
-              type="button"
-              className="workspace-icon-btn kernel-btn"
-              aria-label="Knowledge Kernels"
-              onClick={() => setShowKernelScreen(true)}
-            >
-              <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-                <circle cx="12" cy="12" r="3" fill="currentColor" />
-                <circle cx="12" cy="4" r="2" fill="currentColor" />
-                <circle cx="12" cy="20" r="2" fill="currentColor" />
-                <circle cx="4" cy="12" r="2" fill="currentColor" />
-                <circle cx="20" cy="12" r="2" fill="currentColor" />
-                <circle cx="6.34" cy="6.34" r="1.5" fill="currentColor" />
-                <circle cx="17.66" cy="6.34" r="1.5" fill="currentColor" />
-                <circle cx="6.34" cy="17.66" r="1.5" fill="currentColor" />
-                <circle cx="17.66" cy="17.66" r="1.5" fill="currentColor" />
-              </svg>
-            </button>
-          </Tooltip>
-
           {/* Composer pencil button */}
           <button
             ref={composerBtnRef}
@@ -934,6 +1465,28 @@ will bring it back." variant="dm">
           {showMenu && (
             <div className="workspace-menu-dropdown">
               <button
+                className="menu-item"
+                onClick={() => {
+                  setShowKernelScreen(true);
+                  setShowMenu(false);
+                }}
+              >
+                <span className="menu-item-icon">
+                  <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                    <circle cx="12" cy="12" r="3" fill="currentColor" />
+                    <circle cx="12" cy="4" r="2" fill="currentColor" />
+                    <circle cx="12" cy="20" r="2" fill="currentColor" />
+                    <circle cx="4" cy="12" r="2" fill="currentColor" />
+                    <circle cx="20" cy="12" r="2" fill="currentColor" />
+                    <circle cx="6.34" cy="6.34" r="1.5" fill="currentColor" />
+                    <circle cx="17.66" cy="6.34" r="1.5" fill="currentColor" />
+                    <circle cx="6.34" cy="17.66" r="1.5" fill="currentColor" />
+                    <circle cx="17.66" cy="17.66" r="1.5" fill="currentColor" />
+                  </svg>
+                </span>
+                <span className="menu-item-label">Setup your Kernel...</span>
+              </button>
+              <button
                 className="menu-item menu-item--toggle"
                 onClick={toggleTheme}
               >
@@ -945,10 +1498,62 @@ will bring it back." variant="dm">
                   </span>
                 </span>
               </button>
+              <div className="menu-separator" />
+              <div className="menu-section-label">Demo triggers</div>
+              <button
+                className="menu-item"
+                onClick={() => {
+                  simulateNotificationBar("mention");
+                  setShowMenu(false);
+                }}
+              >
+                <span className="menu-item-icon">@</span>
+                <span className="menu-item-label">Simulate @mention</span>
+              </button>
+              <button
+                className="menu-item"
+                onClick={() => {
+                  simulateNotificationBar("channelCreated");
+                  setShowMenu(false);
+                }}
+              >
+                <span className="menu-item-icon">#</span>
+                <span className="menu-item-label">Simulate new channel</span>
+              </button>
+              <button
+                className="menu-item"
+                onClick={() => {
+                  simulateNewDM();
+                  setShowMenu(false);
+                }}
+              >
+                <span className="menu-item-icon">
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"
+                      fill="currentColor"
+                    />
+                  </svg>
+                </span>
+                <span className="menu-item-label">Simulate new DM</span>
+              </button>
             </div>
           )}
         </div>
       </div>
+
+      {/* Notification Bar - at top of sidebar */}
+      <NotificationBar
+        notifications={notifications}
+        onAddToSidebar={handleAddFromNotification}
+        onDismiss={handleDismissNotification}
+      />
 
       {/* Search bar */}
       <SidebarSearchBar
@@ -982,6 +1587,14 @@ will bring it back." variant="dm">
         </div>
       )}
 
+      {/* Ephemeral Notification Banner */}
+      {ephemeralNotification && (
+        <EphemeralChannelNotification
+          channel={ephemeralNotification}
+          onOpen={handleOpenEphemeral}
+        />
+      )}
+
       {/* Sections with drag and drop */}
       <DndContext
         sensors={sensors}
@@ -989,48 +1602,66 @@ will bring it back." variant="dm">
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
+        {/* Ephemeral Channel Entry (above sections, inside DndContext for drag support) */}
+        {ephemeralChannel && (
+          <EphemeralChannelEntry
+            channel={ephemeralChannel}
+            onAdd={handleAddEphemeralToSidebar}
+            onSelect={handleSelectEphemeralChannel}
+            isSelected={activeChannelId === ephemeralChannel.id}
+          />
+        )}
+
         <SortableContext
           items={sections.map(s => s.id)}
           strategy={verticalListSortingStrategy}
         >
           <div className="sidebar-sections">
-            {sections.map((section, sectionIndex) => (
-              <React.Fragment key={section.id}>
-                {/* Drop line before this section */}
-                {dropIndicator &&
-                  dropIndicator.type === "section" &&
-                  dropIndicator.index === sectionIndex && (
-                    <div className="sidebar-drop-line sidebar-drop-line--section" />
-                  )}
+            {sections.map((section, sectionIndex) => {
+              // Get sorted item IDs for this section
+              const sortedIds = getSortedItemIds(section);
 
-                <CollapsibleSection
-                  section={section}
-                  onToggle={() => handleToggleSection(section.id)}
-                  dropIndicator={dropIndicator}
-                  onContextMenu={(e, section) => {
-                    handleOpenContextMenu({
-                      type: "section",
-                      id: section.id,
-                      title: section.title,
-                      x: e.clientX,
-                      y: e.clientY
-                    });
-                  }}
-                >
-                  {section.itemIds
-                    .map((itemId) => getItemById(itemId))
-                    .filter((item) => item && itemMatchesSearch(item, sidebarSearch))
-                    .map((item) => {
-                      if (item.type === "channel") {
-                        return renderChannelItem(item, section.id);
-                      } else if (item.type === "dm") {
-                        return renderDMItem(item, section.id);
-                      }
-                      return null;
-                    })}
-                </CollapsibleSection>
-              </React.Fragment>
-            ))}
+              return (
+                <React.Fragment key={section.id}>
+                  {/* Drop line before this section */}
+                  {dropIndicator &&
+                    dropIndicator.type === "section" &&
+                    dropIndicator.index === sectionIndex && (
+                      <div className="sidebar-drop-line sidebar-drop-line--section" />
+                    )}
+
+                  <CollapsibleSection
+                    section={section}
+                    onToggle={() => handleToggleSection(section.id)}
+                    dropIndicator={dropIndicator}
+                    onContextMenu={(e, section) => {
+                      handleOpenContextMenu({
+                        type: "section",
+                        id: section.id,
+                        title: section.title,
+                        x: e.clientX,
+                        y: e.clientY
+                      });
+                    }}
+                    onChangeSortMode={handleChangeSortMode}
+                    onOpenMenu={handleOpenSectionMenu}
+                    sortedItemIds={sortedIds}
+                  >
+                    {sortedIds
+                      .map((itemId) => getItemById(itemId))
+                      .filter((item) => item && itemMatchesSearch(item, sidebarSearch))
+                      .map((item) => {
+                        if (item.type === "channel") {
+                          return renderChannelItem(item, section.id);
+                        } else if (item.type === "dm") {
+                          return renderDMItem(item, section.id);
+                        }
+                        return null;
+                      })}
+                  </CollapsibleSection>
+                </React.Fragment>
+              );
+            })}
 
             {/* Drop line at the end of all sections */}
             {dropIndicator &&
@@ -1057,6 +1688,29 @@ will bring it back." variant="dm">
           onCreate={handleCreateDM}
         />
       )}
+
+      {/* Delete section confirmation dialog */}
+      <DeleteSectionDialog
+        isOpen={!!deleteConfirm}
+        sectionTitle={deleteConfirm?.sectionTitle || ""}
+        itemCount={sections.find(s => s.id === deleteConfirm?.sectionId)?.itemIds?.length || 0}
+        onDeleteHeader={handleDeleteSectionHeader}
+        onDeleteAll={handleDeleteSectionAndContents}
+        onCancel={() => setDeleteConfirm(null)}
+      />
+
+      {/* Edit section dialog */}
+      <SectionEditDialog
+        isOpen={!!editSection}
+        sectionTitle={editSection?.sectionTitle || ""}
+        onSave={(newTitle) => {
+          if (editSection) {
+            handleRenameSection(editSection.sectionId, newTitle);
+          }
+          setEditSection(null);
+        }}
+        onCancel={() => setEditSection(null)}
+      />
 
       {/* Context menu */}
       {contextMenu && (
@@ -1135,8 +1789,9 @@ will bring it back." variant="dm">
       <FollowDialog
         isOpen={showFollowDialog}
         onClose={() => setShowFollowDialog(false)}
-        channels={unfollowedChannels}
-        dms={unfollowedDMs}
+        channels={channelDirectory}
+        dms={dmDirectory}
+        followedIds={followedIds}
         onFollowChannel={handleFollowChannel}
         onFollowDM={handleFollowDM}
       />
